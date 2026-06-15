@@ -252,7 +252,8 @@ export async function tieredCompact(
   if (ratio >= COMPRESS_TIERS.URGENT) {
     // 紧急档：合并最老摘要层 + 最早原始消息 → 新一层摘要
     const keepRecent = RECENT_TURNS_URGENT * 2;
-    if (rawMessages.length <= keepRecent) {
+    // 原文不足且非标准档时跳过
+    if (rawMessages.length <= keepRecent && ratio < COMPRESS_TIERS.STANDARD) {
       note('[压缩] 紧急档：剩余原文不足，跳过');
       return { changed: false, messages, tier: 'urgent' };
     }

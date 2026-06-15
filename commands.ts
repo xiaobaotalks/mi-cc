@@ -55,10 +55,11 @@ function handleConnect(ctx: SlashContext, args: string[]): void {
     baseURL: ctx.config.baseUrl,
   });
 
+  const maxToken = ctx.config.maxTokens && !isNaN(ctx.config.maxTokens) ? ctx.config.maxTokens : 8000;
   const envContent = `API_KEY=${ctx.config.apiKey}
 BASE_URL=${ctx.config.baseUrl}
 MODEL=${ctx.config.model}
-MAX_TOKEN=${ctx.config.maxTokens}
+MAX_TOKEN=${maxToken}
 `;
   fs.writeFileSync('.env', envContent, 'utf-8');
   console.log('配置已更新并保存');

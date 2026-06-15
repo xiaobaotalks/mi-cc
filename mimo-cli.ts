@@ -150,6 +150,7 @@ function getMemoryMTime(): number {
 
 function buildSystemPrompt(currentUserInput?: string): string {
   const mtime = getMemoryMTime();
+  // 有当前输入时跳过缓存（技能匹配结果因输入而异）
   if (systemPromptCache && systemPromptCache.mtime === mtime && !currentUserInput) {
     return systemPromptCache.prompt;
   }
@@ -324,7 +325,7 @@ async function handleToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMe
 
     writeCheckpoint({
       sessionId: currentSessionId,
-      task: conversationHistory.find(m => m.role === 'user')?.content?.substring(0, 100) || '',
+      task: conversationHistory.filter(m => m.role === 'user').pop()?.content?.substring(0, 100) || '',
       currentFile: lastFile,
       lastAction: toolName,
       result: result.substring(0, 200),

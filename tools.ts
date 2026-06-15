@@ -95,7 +95,7 @@ export async function toolRunShell(args: Record<string, unknown>): Promise<strin
       (error: Error & { killed?: boolean; signal?: string } | null, stdout: string, stderr: string) => {
         if (error) {
           const reason = error.killed ? `超时被终止 (${error.signal || 'SIGTERM'})` : error.message;
-          resolve(`命令执行错误: ${reason}\n${stderr}`);
+          resolve(`命令执行错误: ${reason}${stderr ? '\n' + stderr : ''}`);
         } else {
           resolve(`执行结果:\n${(stdout || stderr || '无输出').toString()}`);
         }
@@ -106,6 +106,9 @@ export async function toolRunShell(args: Record<string, unknown>): Promise<strin
 
 export async function toolGit(args: Record<string, unknown>): Promise<string> {
   const operation = args.operation as string;
+  if (!operation || typeof operation !== 'string' || !operation.trim()) {
+    return '错误: git 操作不能为空';
+  }
   const params = (args.params as string[]) || [];
   return toolRunShell({ command: `git ${operation} ${params.join(' ')}` });
 }

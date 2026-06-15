@@ -147,12 +147,14 @@ export function saveHistoryToFile(data: HistoryRecord[]): void {
   }
 }
 
-/** 生成唯一 ID：时间戳 ×1000 + 随机，保证单调递增 */
+/** 生成唯一 ID：时间戳 ×10000 + 随机序号（100-999），保证单调递增 */
 export function generateRecordId(data: HistoryRecord[]): number {
   const ts = Date.now();
-  const rand = Math.floor(Math.random() * 1000);
+  const rand = 100 + Math.floor(Math.random() * 900); // 3位数，避免与 maxId+1 冲突
   const maxId = data.reduce((m, r) => Math.max(m, r.id ?? 0), 0);
-  return Math.max(maxId + 1, ts * 1000 + rand);
+  // 时间戳部分足够大（×10000），确保新ID永远比旧的更大
+  const candidate = ts * 10000 + rand;
+  return Math.max(maxId + 1, candidate);
 }
 
 /** 当历史超过上限时丢弃较早记录，返回裁剪后的数组 */
