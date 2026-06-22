@@ -4,8 +4,10 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import OpenAI from 'openai';
 import type { Message, Tool, HistoryRecord, Config } from './types';
+import { appState } from './src/state';
 import {
   tieredCompact,
   estimateTotalTokens,
@@ -29,9 +31,6 @@ export interface SlashContext {
   openai: OpenAI;
   config: Config;
   tools: Tool[];
-  conversationHistory: Message[];
-  historyData: HistoryRecord[];
-  currentSessionId: string;
 }
 
 // ==================== /connect ====================
@@ -81,6 +80,74 @@ const PRESET_PROVIDERS = [
     models: [],
   },
 ];
+
+// ========== 安全存储（可选功能） ==========
+
+/**
+ * 尝试使用系统 keychain 存储 API Key
+ * 支持: macOS Keychain / Windows Credential Store / Linux libsecret
+ * 如果不可用则回退到 .env 明文存储
+ */
+async function safeStoreApiKey(service: string, account: string, key: string): Promise<boolean> {
+  // 方案一: 使用 safeStorage (Electron/Node.js 内置)
+  try {
+    const { safeStorage } = require('electron');
+    if (safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(key);
+      const keytarPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.mi-cc', 'secrets.json');
+      // 存储加密后的内容到文件（不是明文）
+      const dir = path.dirname(keytarPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const existing = fs.existsSync(keytarPath) ? JSON.parse(fs.readFileSync(keytarPath, 'utf-8')) : {};
+      existing[`${service}:${account}`] = encrypted.toString('base64');
+      fs.writeFileSync(keytarPath, JSON.stringify(existing), 'utf-8');
+      return true;
+    }
+  } catch {
+    // safeStorage 不可用，尝试 keytar
+  }
+
+  // 方案二: 使用 keytar（npm 包）
+  try {
+    const keytar = await import('keytar');
+    await keytar.setPassword(service, account, key);
+    return true;
+  } catch {
+    // keytar 不可用
+  }
+
+  return false;
+}
+
+async function safeGetApiKey(service: string, account: string): Promise<string | null> {
+  // 方案一: safeStorage
+  try {
+    const { safeStorage } = require('electron');
+    if (safeStorage.isEncryptionAvailable()) {
+      const keytarPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.mi-cc', 'secrets.json');
+      if (fs.existsSync(keytarPath)) {
+        const existing = JSON.parse(fs.readFileSync(keytarPath, 'utf-8'));
+        const encrypted = existing[`${service}:${account}`];
+        if (encrypted) {
+          const buffer = Buffer.from(encrypted, 'base64');
+          return safeStorage.decryptString(buffer);
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 方案二: keytar
+  try {
+    const keytar = await import('keytar');
+    return await keytar.getPassword(service, account);
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
 
 /** 创建交互式输入 */
 function createPrompt(rl: readline.Interface, question: string): Promise<string> {
@@ -167,7 +234,25 @@ async function interactiveConnect(ctx: SlashContext): Promise<void> {
       return;
     }
 
-    // 应用配置
+    // 询问是否启用安全存储
+    const useSafeStorage = await createPrompt(
+      rl,
+      '\n是否启用安全存储？(将 Key 加密存储而非明文 .env) (y/N): '
+    );
+
+    let apiKeyToStore = apiKey;
+    if (useSafeStorage.toLowerCase() === 'y') {
+      const stored = await safeStoreApiKey('mi-cc', provider.name, apiKey);
+      if (stored) {
+        // 从 .env 中移除 API Key，替换为占位符
+        apiKeyToStore = '[SECURED]';
+        console.log('✅ API Key 已加密存储');
+      } else {
+        console.log('⚠️ 安全存储不可用，Key 已明文保存到 .env');
+      }
+    }
+
+    // 应用配置（ctx.config.apiKey 保留实际 Key 供 API 调用使用）
     ctx.config.apiKey = apiKey;
     ctx.config.baseUrl = baseUrl;
     ctx.config.model = model;
@@ -177,8 +262,12 @@ async function interactiveConnect(ctx: SlashContext): Promise<void> {
       baseURL: ctx.config.baseUrl,
     });
 
-    // 保存到 .env
-    const envContent = `API_KEY=${ctx.config.apiKey}
+    // 同步到 appState
+    appState.set('config', ctx.config);
+    appState.set('openai', ctx.openai);
+
+    // 保存到 .env（如果启用安全存储则写入占位符）
+    const envContent = `API_KEY=${apiKeyToStore}
 BASE_URL=${ctx.config.baseUrl}
 MODEL=${ctx.config.model}
 MAX_TOKEN=${ctx.config.maxTokens}
@@ -219,6 +308,10 @@ function handleConnect(ctx: SlashContext, args: string[]): void {
       baseURL: ctx.config.baseUrl,
     });
 
+    // 同步到 appState
+    appState.set('config', ctx.config);
+    appState.set('openai', ctx.openai);
+
     const envContent = `API_KEY=${ctx.config.apiKey}
 BASE_URL=${ctx.config.baseUrl}
 MODEL=${ctx.config.model}
@@ -239,21 +332,21 @@ MAX_TOKEN=${ctx.config.maxTokens}
 
 async function handleCompact(ctx: SlashContext): Promise<void> {
   console.log('[手动压缩] 开始...');
-  const beforeTokens = estimateTotalTokens(ctx.conversationHistory);
+  const beforeTokens = estimateTotalTokens(appState.get('conversationHistory'));
 
   const forcedMax = Math.max(Math.ceil(beforeTokens * 1.5), ctx.config.maxTokens);
   const result = await tieredCompact(
     ctx.openai,
     ctx.config.model,
-    ctx.conversationHistory,
+    appState.get('conversationHistory'),
     forcedMax,
     (msg) => console.log(msg),
   );
 
   if (result.changed) {
-    ctx.conversationHistory.splice(0, ctx.conversationHistory.length, ...result.messages);
-    saveStateFromMessages(ctx.conversationHistory);
-    const afterTokens = estimateTotalTokens(ctx.conversationHistory);
+    appState.set('conversationHistory', result.messages);
+    saveStateFromMessages(appState.get('conversationHistory'));
+    const afterTokens = estimateTotalTokens(appState.get('conversationHistory'));
     console.log(`[手动压缩] 完成 (${result.tier}): ${beforeTokens} -> ${afterTokens} tokens`);
   } else {
     console.log('[手动压缩] 没有可压缩的历史');
@@ -267,7 +360,7 @@ async function handleDistill(ctx: SlashContext): Promise<void> {
 
   const checkpoint = readCheckpoint();
   const memory = readMemory();
-  const history = queryHistory(ctx.historyData, ctx.currentSessionId);
+  const history = queryHistory(appState.get('historyData'), appState.get('currentSessionId'));
 
   const distillPrompt = `请分析以下数据，挖掘高频重复工作流，生成技能库。
 
@@ -338,10 +431,10 @@ ${memory}
     console.log('[Dream] 记忆整理完成');
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const beforeCount = ctx.historyData.length;
-    ctx.historyData = ctx.historyData.filter(r => r.time >= sevenDaysAgo);
-    saveHistoryToFile(ctx.historyData);
-    console.log(`[Dream] 过期日志已清理: ${beforeCount} -> ${ctx.historyData.length}`);
+    const beforeCount = appState.get('historyData').length;
+    appState.set('historyData', appState.get('historyData').filter(r => r.time >= sevenDaysAgo));
+    saveHistoryToFile(appState.get('historyData'));
+    console.log(`[Dream] 过期日志已清理: ${beforeCount} -> ${appState.get('historyData').length}`);
   } catch (error) {
     console.log(`[Dream] 失败: ${error}`);
   }
@@ -395,7 +488,7 @@ function handleSkillCommand(args: string[]): void {
 /** Provider 配置持久化文件 */
 const PROVIDER_FILE = 'providers.json';
 
-interface ProviderEntry {
+export interface ProviderEntry {
   id: string;
   name: string;
   apiKey: string;
@@ -404,7 +497,7 @@ interface ProviderEntry {
   active: boolean;
 }
 
-function loadProviders(): ProviderEntry[] {
+export function loadProviders(): ProviderEntry[] {
   try {
     if (fs.existsSync(PROVIDER_FILE)) {
       return JSON.parse(fs.readFileSync(PROVIDER_FILE, 'utf-8'));
@@ -486,6 +579,10 @@ function handleProviderCommand(ctx: SlashContext, args: string[]): void {
         apiKey: target.apiKey,
         baseURL: target.baseUrl,
       });
+
+      // 同步到 appState
+      appState.set('config', ctx.config);
+      appState.set('openai', ctx.openai);
 
       // 同步到 .env
       const envContent = `API_KEY=${target.apiKey}

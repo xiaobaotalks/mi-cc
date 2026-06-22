@@ -15,6 +15,7 @@ import {
   estimateTotalTokens,
   saveStateFromMessages,
   resolveContextWindow,
+  loadCompressState,
 } from './compress';
 import { matchSkill, formatSkillForPrompt } from './skills';
 import type { Message, Tool, HistoryRecord, Config, Checkpoint } from './types';
@@ -31,8 +32,9 @@ import {
   SLASH_COMMANDS,
   type SlashContext,
 } from './commands';
+import { ProviderRouter } from './src/router';
 // 启动时自动加载上次激活的 Provider
-import { loadProviders } from './commands';
+import { loadProviders, type ProviderEntry } from './commands';
 import {
   readCheckpoint,
   writeCheckpoint,
@@ -45,6 +47,8 @@ import {
   SKILL_LIB_FILE,
 } from './memory';
 import { mcpMode } from './mcp-mode';
+import { appState } from './src/state';
+import { loadConfig } from './src/config';
 
 // ==================== 常量 ====================
 
@@ -58,13 +62,8 @@ const LLM_MAX_RETRIES = 3;
 
 // ==================== 全局变量 ====================
 
-let openai: OpenAI;
-let config: Config;
-let currentSessionId: string;
-let conversationHistory: Message[] = [];
-let tools: Tool[] = [];
-let historyData: HistoryRecord[] = [];
 let slashCtx: SlashContext;
+let router: ProviderRouter | null = null;
 
 // 启动像素标识
 // 注意：CJK 字符在终端占 2 列宽，源码只算 1 字符；排版时按 CJK 字符数 -1 计算空格
@@ -87,31 +86,7 @@ const BANNER = `
 
 // ==================== 初始化 ====================
 
-function initConfig(): Config {
-  dotenv.config({ path: '.env' });
-
-  // 默认配置：优先使用国产大模型（MiMo），兼容 OpenAI 通道
-  const defaultModel = 'mimo-v2.5-pro';
-  const defaultBaseUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
-
-  const model = process.env.MODEL || defaultModel;
-  const baseUrl = process.env.BASE_URL || defaultBaseUrl;
-
-  // 自动根据模型推断上下文窗口；用户可通过 MAX_TOKEN 显式覆盖
-  const envMaxToken = process.env.MAX_TOKEN ? parseInt(process.env.MAX_TOKEN, 10) : null;
-  const inferred = envMaxToken ?? resolveContextWindow(model) ?? 8000;
-  if (envMaxToken === null && resolveContextWindow(model)) {
-    console.log(`[配置] 模型 ${model} 自动设置 maxTokens=${inferred}`);
-  }
-  return {
-    apiKey: process.env.API_KEY || '',
-    baseUrl,
-    model,
-    maxTokens: inferred,
-  };
-}
-
-function initOpenAI(cfg: Config): OpenAI {
+function initOpenAI(cfg: { apiKey: string; baseUrl: string }): OpenAI {
   return new OpenAI({
     apiKey: cfg.apiKey,
     baseURL: cfg.baseUrl,
@@ -122,25 +97,25 @@ function initOpenAI(cfg: Config): OpenAI {
 
 async function compactContext(): Promise<void> {
   const result = await tieredCompact(
-    openai,
-    config.model,
-    conversationHistory,
-    config.maxTokens,
+    appState.get('openai'),
+    appState.get('config').model,
+    appState.get('conversationHistory'),
+    appState.get('config').maxTokens,
     (msg) => console.log(msg),
   );
 
   if (!result.changed) {
     if (result.tier === 'none') {
-      const total = estimateTotalTokens(conversationHistory);
+      const total = estimateTotalTokens(appState.get('conversationHistory'));
       console.log(`[压缩] 当前 token ${total}，无需压缩`);
     }
     return;
   }
 
-  conversationHistory = result.messages;
-  saveStateFromMessages(conversationHistory);
-  console.log(`[压缩] 完成 (${result.tier})，当前 token ${estimateTotalTokens(conversationHistory)}`);
-  appendNote(`上下文压缩完成（${result.tier}），剩余 token: ${estimateTotalTokens(conversationHistory)}`);
+  appState.set('conversationHistory', result.messages);
+  saveStateFromMessages(appState.get('conversationHistory'));
+  console.log(`[压缩] 完成 (${result.tier})，当前 token ${estimateTotalTokens(appState.get('conversationHistory'))}`);
+  appendNote(`上下文压缩完成（${result.tier}），剩余 token: ${estimateTotalTokens(appState.get('conversationHistory'))}`);
 }
 
 // ==================== System Prompt ====================
@@ -176,11 +151,11 @@ function buildSystemPrompt(currentUserInput?: string): string {
   let systemPrompt = `你是一个智能编程助手 mi-cc。
 
 ## 当前会话
-- Session ID: ${currentSessionId}
+- Session ID: ${appState.get('currentSessionId')}
 - 时间: ${new Date().toISOString()}
 
 ## 可用工具
-${tools.map(t => `- ${t.name}: ${t.description}${t.source === 'mcp' ? ' (MCP)' : ''}`).join('\n')}
+${appState.get('tools').map(t => `- ${t.name}: ${t.description}${t.source === 'mcp' ? ' (MCP)' : ''}`).join('\n')}
 
 ## 工作原则
 1. 使用工具完成任务
@@ -236,12 +211,12 @@ async function callLLMWithTimeout(messages: Message[]): Promise<Message> {
   const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
   try {
-    const response = await openai.chat.completions.create({
-      model: config.model,
+    const response = await appState.get('openai').chat.completions.create({
+      model: appState.get('config').model,
       messages: messages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      tools: toolsToOpenAIFormat(tools),
+      tools: toolsToOpenAIFormat(appState.get('tools')),
       tool_choice: 'auto',
-      max_tokens: config.maxTokens,
+      max_tokens: appState.get('config').maxTokens,
     }, { signal: controller.signal as any });
     return response.choices[0].message as unknown as Message;
   } finally {
@@ -252,6 +227,25 @@ async function callLLMWithTimeout(messages: Message[]): Promise<Message> {
 async function callLLM(messages: Message[]): Promise<Message> {
   // --- 首次尝试 ---
   try {
+    // 如果配置了 Router，使用 Router.chat()
+    if (router) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+      try {
+        const response = await router.chat({
+          messages,
+          model: appState.get('config').model,
+          maxTokens: appState.get('config').maxTokens,
+          tools: toolsToOpenAIFormat(appState.get('tools')),
+          toolChoice: 'auto',
+          signal: controller.signal,
+        });
+        return response.message;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+    // 没有 Router 时使用原来的逻辑
     return await callLLMWithTimeout(messages);
   } catch (error) {
     const category = classifyLLMError(error);
@@ -269,35 +263,53 @@ async function callLLM(messages: Message[]): Promise<Message> {
     // 上下文超限：保持现有压缩+降级逻辑
     if (category === 'context_length') {
       console.log(`[LLM] 触发上下文超限，自动压缩并降级重试...`);
-      const reducedMax = Math.floor(config.maxTokens * 0.9);
-      config.maxTokens = reducedMax;
+      const reducedMax = Math.floor(appState.get('config').maxTokens * 0.9);
+      appState.get('config').maxTokens = reducedMax;
       appendNote(`[LLM] 上下文超限，已将 maxTokens 降至 ${reducedMax}`);
       // 强制一次压缩
       const result = await tieredCompact(
-        openai,
-        config.model,
-        conversationHistory,
+        appState.get('openai'),
+        appState.get('config').model,
+        appState.get('conversationHistory'),
         reducedMax,
         (msg) => console.log(msg),
       );
       if (result.changed) {
-        conversationHistory = result.messages;
-        saveStateFromMessages(conversationHistory);
+        appState.set('conversationHistory', result.messages);
+        saveStateFromMessages(appState.get('conversationHistory'));
       }
-      // 用压缩后的 history 重试一次
+      // 用压缩后的 history 重试一次（不使用 Router，保持原有逻辑）
       const retryMessages: Message[] = [
         { role: 'system', content: buildSystemPrompt() },
-        ...conversationHistory,
+        ...appState.get('conversationHistory'),
       ];
       return await callLLMWithTimeout(retryMessages);
     }
 
-    // server / unknown 错误：指数退避重试
+    // server / unknown 错误：指数退避重试（Router 已经处理过故障转移）
     for (let attempt = 0; attempt < LLM_MAX_RETRIES; attempt++) {
       const delay = 500 * Math.pow(2, attempt);
       console.log(`[LLM] ${category === 'server' ? '服务端' : '未知'}错误，第 ${attempt + 1}/${LLM_MAX_RETRIES} 次重试，等待 ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       try {
+        // 重试时仍然使用 Router（如果可用）
+        if (router) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+          try {
+            const response = await router.chat({
+              messages,
+              model: appState.get('config').model,
+              maxTokens: appState.get('config').maxTokens,
+              tools: toolsToOpenAIFormat(appState.get('tools')),
+              toolChoice: 'auto',
+              signal: controller.signal,
+            });
+            return response.message;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
         return await callLLMWithTimeout(messages);
       } catch (retryError) {
         const retryCategory = classifyLLMError(retryError);
@@ -308,23 +320,23 @@ async function callLLM(messages: Message[]): Promise<Message> {
         // context_length 在重试中也可以处理
         if (retryCategory === 'context_length') {
           console.log(`[LLM] 重试时触发上下文超限，自动压缩并降级重试...`);
-          const reducedMax = Math.floor(config.maxTokens * 0.9);
-          config.maxTokens = reducedMax;
+          const reducedMax = Math.floor(appState.get('config').maxTokens * 0.9);
+          appState.get('config').maxTokens = reducedMax;
           appendNote(`[LLM] 上下文超限，已将 maxTokens 降至 ${reducedMax}`);
           const result = await tieredCompact(
-            openai,
-            config.model,
-            conversationHistory,
+            appState.get('openai'),
+            appState.get('config').model,
+            appState.get('conversationHistory'),
             reducedMax,
             (msg) => console.log(msg),
           );
           if (result.changed) {
-            conversationHistory = result.messages;
-            saveStateFromMessages(conversationHistory);
+            appState.set('conversationHistory', result.messages);
+            saveStateFromMessages(appState.get('conversationHistory'));
           }
           const retryMessages: Message[] = [
             { role: 'system', content: buildSystemPrompt() },
-            ...conversationHistory,
+            ...appState.get('conversationHistory'),
           ];
           return await callLLMWithTimeout(retryMessages);
         }
@@ -389,7 +401,7 @@ async function handleToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMe
     console.log(`${top} [${formatTimeShort()}] 🔧 ${toolName}(${JSON.stringify(args)})`);
 
     const t0 = Date.now();
-    const result = await executeToolCall(tools, toolName, args);
+    const result = await executeToolCall(appState.get('tools'), toolName, args);
     const elapsed = Date.now() - t0;
     results.push(result);
 
@@ -405,8 +417,8 @@ async function handleToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMe
     if (file) lastFile = file;
 
     writeCheckpoint({
-      sessionId: currentSessionId,
-      task: conversationHistory.find(m => m.role === 'user')?.content?.substring(0, 100) || '',
+      sessionId: appState.get('currentSessionId'),
+      task: appState.get('conversationHistory').find(m => m.role === 'user')?.content?.substring(0, 100) || '',
       currentFile: lastFile,
       lastAction: toolName,
       result: result.substring(0, 200),
@@ -419,22 +431,22 @@ async function handleToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMe
 }
 
 async function agentLoop(userInput: string): Promise<void> {
-  conversationHistory.push({ role: 'user', content: userInput });
-  historyData = saveHistory(historyData, currentSessionId, 'user', userInput);
+  appState.get('conversationHistory').push({ role: 'user', content: userInput });
+  appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'user', userInput));
 
   await compactContext();
 
   const messages: Message[] = [
     { role: 'system', content: buildSystemPrompt(userInput) },
-    ...conversationHistory,
+    ...appState.get('conversationHistory'),
   ];
 
   let response = await callLLM(messages);
 
   let iterations = 0;
   while (true) {
-    conversationHistory.push(response);
-    historyData = saveHistory(historyData, currentSessionId, 'assistant', response.content || JSON.stringify(response));
+    appState.get('conversationHistory').push(response);
+    appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'assistant', response.content || JSON.stringify(response)));
 
     if (response.content) {
       console.log(`\n[${formatTimeShort()}] 💬 [助手]\n${response.content}\n`);
@@ -454,7 +466,7 @@ async function agentLoop(userInput: string): Promise<void> {
     const results = await handleToolCalls(response as OpenAI.Chat.Completions.ChatCompletionMessage);
 
     for (let i = 0; i < toolCalls.length; i++) {
-      conversationHistory.push({
+      appState.get('conversationHistory').push({
         role: 'tool',
         content: results[i],
         tool_call_id: toolCalls[i].id,
@@ -463,13 +475,13 @@ async function agentLoop(userInput: string): Promise<void> {
 
     const nextMessages: Message[] = [
       { role: 'system', content: buildSystemPrompt() },
-      ...conversationHistory,
+      ...appState.get('conversationHistory'),
     ];
     response = await callLLM(nextMessages);
   }
 
   writeCheckpoint({
-    sessionId: currentSessionId,
+    sessionId: appState.get('currentSessionId'),
     task: userInput.substring(0, 100),
     currentFile: '',
     lastAction: '对话',
@@ -502,10 +514,11 @@ async function main() {
   console.log(BANNER);
   console.log('输入 /help 查看可用命令\n');
 
-  config = initConfig();
-  openai = initOpenAI(config);
-  historyData = initHistory();
-  tools = createBuiltinTools();
+  const { config, warnings } = loadConfig();
+  for (const w of warnings) console.log(`[警告] ${w}`);
+  let openai = initOpenAI(config);
+  let historyData = initHistory();
+  let tools = createBuiltinTools();
   initMcpTools(tools, (cmd, timeout) =>
     toolRunShell({ command: cmd, timeout }),
   );
@@ -525,27 +538,9 @@ async function main() {
     // ignore
   }
 
-  // 构建斜杠命令上下文
-  slashCtx = {
-    openai,
-    config,
-    tools,
-    conversationHistory,
-    historyData,
-    currentSessionId: '',
-  };
-  // 同步上下文辅助函数：将全局变量同步到 SlashContext
-  const syncCtx = () => {
-    slashCtx.openai = openai;
-    slashCtx.config = config;
-    slashCtx.tools = tools;
-    slashCtx.conversationHistory = conversationHistory;
-    slashCtx.historyData = historyData;
-    slashCtx.currentSessionId = currentSessionId;
-  };
-
   // 恢复或创建会话
   const checkpoint = readCheckpoint();
+  let currentSessionId: string;
   if (options.session) {
     currentSessionId = options.session;
   } else if (checkpoint && checkpoint.sessionId) {
@@ -556,7 +551,30 @@ async function main() {
     currentSessionId = generateSessionId();
     console.log(`[新会话] ${currentSessionId}`);
   }
-  syncCtx();
+
+  // 初始化 appState
+  appState.init({
+    openai,
+    config,
+    currentSessionId,
+    conversationHistory: [],
+    tools,
+    historyData,
+  });
+
+  // 如果配置了备用 Provider，初始化 Router
+  const backupProviders = ProviderRouter.loadFromEnv();
+  if (backupProviders.length > 0) {
+    router = new ProviderRouter(config, backupProviders);
+    console.log(`[Provider] 已加载 ${backupProviders.length + 1} 个 Provider（主 + ${backupProviders.length} 个备用）`);
+  }
+
+  // 构建斜杠命令上下文（直接引用 appState）
+  slashCtx = {
+    openai: appState.get('openai'),
+    config: appState.get('config'),
+    tools: appState.get('tools'),
+  };
 
   // 恢复压缩摘要层
   const compressState = loadCompressState();
@@ -565,7 +583,7 @@ async function main() {
       role: 'system' as const,
       content: `[历史摘要 L${s.level} @ ${s.createdAt}]\n${s.text}`,
     }));
-    conversationHistory = [...summaryMessages, ...conversationHistory];
+    appState.set('conversationHistory', [...summaryMessages, ...appState.get('conversationHistory')]);
     console.log(`[压缩] 已恢复 ${compressState.summaries.length} 层摘要`);
   }
 
@@ -626,13 +644,7 @@ async function main() {
     }
 
     if (trimmed.startsWith('/')) {
-      syncCtx();
       await handleSlashCommand(slashCtx, trimmed);
-      // 从上下文回写可能被命令修改的状态
-      conversationHistory = slashCtx.conversationHistory;
-      historyData = slashCtx.historyData;
-      config = slashCtx.config;
-      openai = slashCtx.openai;
       rl.prompt();
       return;
     }

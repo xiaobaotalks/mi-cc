@@ -21,6 +21,7 @@
   },
   "optionalDependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "keytar": "^5.6.0",
     "tiktoken": "^1.0.0"
   },
   "devDependencies": {

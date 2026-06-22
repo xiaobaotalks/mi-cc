@@ -1,0 +1,77 @@
+import type OpenAI from 'openai';
+import type { Message, Tool, HistoryRecord, Config } from '../types';
+
+// ========== AppState 单例 ==========
+
+class AppState {
+  private static _instance: AppState;
+
+  // 状态字段
+  openai!: OpenAI;
+  config!: Config;
+  currentSessionId!: string;
+  conversationHistory!: Message[];
+  tools!: Tool[];
+  historyData!: HistoryRecord[];
+
+  // 变更订阅
+  private _listeners: Map<string, Set<(value: unknown) => void>> = new Map();
+
+  static get instance(): AppState {
+    if (!AppState._instance) {
+      AppState._instance = new AppState();
+    }
+    return AppState._instance;
+  }
+
+  /** 设置字段并触发订阅 */
+  set<K extends keyof AppState>(key: K, value: AppState[K]): void {
+    (this as AppState)[key] = value;
+    this._notify(key, value);
+  }
+
+  get<K extends keyof AppState>(key: K): AppState[K] {
+    return this[key];
+  }
+
+  /** 订阅字段变更 */
+  subscribe<K extends keyof AppState>(
+    key: K,
+    cb: (value: AppState[K]) => void,
+  ): () => void {
+    if (!this._listeners.has(key)) {
+      this._listeners.set(key, new Set());
+    }
+    this._listeners.get(key)!.add(cb as (value: unknown) => void);
+    return () => this._listeners.get(key)?.delete(cb as (value: unknown) => void);
+  }
+
+  private _notify(key: string, value: unknown): void {
+    this._listeners.get(key)?.forEach(cb => cb(value));
+  }
+
+  /** 初始化全部状态（一次调用） */
+  init(initial: {
+    openai: OpenAI;
+    config: Config;
+    currentSessionId: string;
+    conversationHistory: Message[];
+    tools: Tool[];
+    historyData: HistoryRecord[];
+  }): void {
+    this.openai = initial.openai;
+    this.config = initial.config;
+    this.currentSessionId = initial.currentSessionId;
+    this.conversationHistory = initial.conversationHistory;
+    this.tools = initial.tools;
+    this.historyData = initial.historyData;
+  }
+
+  /** 清空对话历史（保留系统消息） */
+  clearHistory(): void {
+    const systemMsgs = this.conversationHistory.filter(m => m.role === 'system');
+    this.conversationHistory = systemMsgs;
+  }
+}
+
+export const appState = AppState.instance;

@@ -38,8 +38,9 @@ import {
 import { matchSkill, formatSkillForPrompt } from './skills';
 import type { Tool, Config } from './types';
 import OpenAI from 'openai';
+import { appState } from './src/state';
 
-// ==================== 初始化（复用现有函数） ====================
+// ==================== 初始化（复用 mimo-cli 的配置逻辑） ====================
 
 function initConfig(): Config {
   // 复用 mimo-cli 的配置逻辑（不直接 import 避免循环）
@@ -84,6 +85,16 @@ export async function mcpMode(): Promise<void> {
   initMcpTools(tools, (cmd, timeout) => toolRunShell({ command: cmd, timeout }));
   const sessionId = generateSessionId();
   const historyData = initHistory();
+
+  // 初始化 appState
+  appState.init({
+    openai,
+    config,
+    currentSessionId: sessionId,
+    conversationHistory: [],
+    tools,
+    historyData,
+  });
 
   // agentLoop 需要的共享状态（MCP 模式下简化）
   let conversationHistory: any[] = [];
