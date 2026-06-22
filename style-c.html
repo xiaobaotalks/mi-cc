@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mi-cc · AI 编程助手 — Style C</title>
+<meta name="description" content="mi-cc - 自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手。本地终端体验 + MCP Server 模式，让 OpenClaw/Cursor/Claude 获得专属编程能力。" />
+<meta name="keywords" content="mi-cc, AI CLI, 智能编程, 终端, LLM Agent, MCP, OpenClaw, Hermes, OpenAI, MiMo, 小米" />
+<meta name="author" content="xiaobaotalks" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%BB%3C/text%3E%3C/svg%3E" />
+
+<style>
+  :root {
+    --bg-0: #faf5ff;
+    --bg-1: #fdf6e3;
+    --bg-2: #fef3c7;
+    --card: rgba(255, 255, 255, 0.55);
+    --card-solid: #ffffff;
+    --border: rgba(245, 158, 11, 0.2);
+    --border-soft: rgba(0, 0, 0, 0.06);
+    --text: #1c1917;
+    --text-soft: #78716c;
+    --accent: #f59e0b;
+    --accent-2: #ef4444;
+    --accent-3: #f97316;
+    --success: #10b981;
+    --link: #d97706;
+    --code-bg: rgba(255, 255, 255, 0.7);
+    --code-border: rgba(245, 158, 11, 0.2);
+    --glow: 0 0 30px rgba(245, 158, 11, 0.15);
+    --gradient: linear-gradient(135deg, #f59e0b, #ef4444);
+    --warm-gradient: linear-gradient(180deg, #faf5ff 0%, #fef3c7 50%, #faf5ff 100%);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    background: var(--warm-gradient);
+    background-attachment: fixed;
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(245, 158, 11, 0.1), transparent 40%),
+      radial-gradient(circle at 85% 30%, rgba(239, 68, 68, 0.06), transparent 40%),
+      radial-gradient(circle at 50% 80%, rgba(249, 115, 22, 0.08), transparent 40%);
+    pointer-events: none;
+    z-index: -2;
+  }
+
+  /* Decorative blobs */
+  body::after {
+    content: "";
+    position: fixed;
+    top: -200px;
+    right: -200px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.08), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  a { color: var(--link); text-decoration: none; transition: all 0.2s; }
+  a:hover { color: var(--accent-2); text-decoration: none; }
+
+  code {
+    font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 0.85em;
+    color: var(--accent);
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 16px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 12px 0;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.06);
+    backdrop-filter: blur(10px);
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text);
+    font-size: 0.85em;
+    line-height: 1.75;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    padding: 6px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.78em;
+    font-family: inherit;
+    transition: all 0.2s;
+    backdrop-filter: blur(10px);
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); background: rgba(255, 255, 255, 0.95); }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); background: rgba(16, 185, 129, 0.08); }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 18px 0;
+  }
+  nav .container { display: flex; justify-content: space-between; align-items: center; }
+  .logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.15em; color: var(--text); }
+  .logo-icon {
+    font-size: 1.6em;
+    background: var(--gradient);
+    padding: 8px 14px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  .nav-links { display: flex; gap: 28px; }
+  .nav-links a { color: var(--text-soft); font-size: 0.92em; position: relative; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-links a::after {
+    content: "";
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--gradient);
+    border-radius: 1px;
+    transition: width 0.3s;
+  }
+  .nav-links a:hover::after { width: 100%; }
+
+  .hero {
+    text-align: center;
+    padding: 100px 0 80px;
+    position: relative;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 0.82em;
+    color: var(--text-soft);
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+  }
+  .badge .dot {
+    display: inline-block; width: 8px; height: 8px;
+    background: var(--success); border-radius: 50%;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+  }
+
+  h1 {
+    font-size: 4.5em;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-bottom: 20px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+    display: inline-block;
+  }
+  h1::before {
+    content: "";
+    position: absolute;
+    inset: -20px;
+    background: radial-gradient(ellipse at center, rgba(245,158,11,0.12), transparent 70%);
+    z-index: -1;
+    filter: blur(20px);
+  }
+  .tagline { font-size: 1.3em; color: var(--text-soft); max-width: 780px; margin: 0 auto 36px; }
+  .features-inline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  .feature-pill {
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--border-soft);
+    border-radius: 100px;
+    font-size: 0.82em;
+    color: var(--text-soft);
+    transition: all 0.2s;
+    backdrop-filter: blur(10px);
+  }
+  .feature-pill:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+  }
+  .feature-pill::before {
+    content: "✦ ";
+    color: var(--accent);
+    margin-right: 2px;
+  }
+
+  .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 60px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px;
+    border-radius: 14px;
+    font-weight: 600;
+    font-size: 0.95em;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary {
+    background: var(--gradient);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.35);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(245, 158, 11, 0.45);
+    color: #fff;
+  }
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+  }
+  .btn-primary:hover::before { transform: translateX(100%); }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--text);
+    border-color: var(--border);
+    backdrop-filter: blur(10px);
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
+  }
+
+  section { padding: 80px 0; position: relative; }
+  section:nth-child(even) { background: linear-gradient(180deg, transparent, rgba(245, 158, 11, 0.03), transparent); }
+  h2 {
+    font-size: 2.5em;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .section-sub { text-align: center; color: var(--text-soft); margin-bottom: 48px; font-size: 1.05em; }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 18px;
+  }
+  .feature {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    padding: 28px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .feature::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gradient);
+    border-radius: 3px 3px 0 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .feature:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(245, 158, 11, 0.1);
+  }
+  .feature:hover::before { opacity: 1; }
+  .feature-icon {
+    font-size: 2em;
+    margin-bottom: 16px;
+    display: inline-block;
+    width: 56px;
+    height: 56px;
+    line-height: 56px;
+    text-align: center;
+    background: var(--gradient);
+    border-radius: 16px;
+    filter: none;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+  }
+  .feature h3 { font-size: 1.15em; margin-bottom: 10px; color: var(--text); font-weight: 600; }
+  .feature p { color: var(--text-soft); font-size: 0.92em; line-height: 1.7; }
+
+  .install-steps { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  .step {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: all 0.2s;
+  }
+  .step:hover { border-color: var(--border); box-shadow: 0 8px 24px rgba(245, 158, 11, 0.08); }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    background: var(--gradient);
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 700;
+    margin-right: 12px;
+    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
+  }
+  .step h3 { display: inline-block; font-size: 1.1em; vertical-align: middle; color: var(--text); font-weight: 600; }
+
+  .cmd-table {
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .cmd-table th, .cmd-table td {
+    padding: 16px 24px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .cmd-table tr:last-child td { border-bottom: none; }
+  .cmd-table th { background: rgba(245, 158, 11, 0.06); color: var(--text); font-weight: 600; font-size: 0.92em; }
+  .cmd-table td:first-child {
+    font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    color: var(--accent);
+    font-size: 0.9em;
+    white-space: nowrap;
+  }
+  .cmd-table tr:hover { background: rgba(245, 158, 11, 0.03); }
+
+  .terminal-demo {
+    background: linear-gradient(135deg, #1c1917 0%, #292524 100%);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    border-radius: 20px;
+    padding: 0;
+    max-width: 880px;
+    margin: 0 auto;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.12), 0 0 60px rgba(245, 158, 11, 0.06);
+    overflow: hidden;
+  }
+  .terminal-header {
+    background: linear-gradient(180deg, rgba(245,158,11,0.08), transparent);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .terminal-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+  .terminal-dot.red { background: #ff5f56; }
+  .terminal-dot.yellow { background: #ffbd2e; }
+  .terminal-dot.green { background: #27c93f; }
+  .terminal-title {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.82em;
+    color: #a8a29e;
+    margin-left: 12px;
+  }
+  .terminal-body {
+    padding: 24px;
+    font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    font-size: 0.85em;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .terminal-line { color: #e7e5e4; }
+  .terminal-prompt { color: #f59e0b; }
+  .terminal-input { color: #fafaf9; font-weight: 500; }
+  .terminal-output { color: #a8a29e; }
+  .terminal-success { color: #34d399; }
+  .terminal-info { color: #fbbf24; }
+  .terminal-warning { color: #fb923c; }
+  .terminal-border-top { border-top: 1px dashed rgba(255, 255, 255, 0.06); margin-top: 12px; padding-top: 12px; }
+
+  .compare-table {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .compare-table th, .compare-table td {
+    padding: 16px 20px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-soft);
+    border-right: 1px solid var(--border-soft);
+  }
+  .compare-table th:last-child, .compare-table td:last-child { border-right: none; }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table th {
+    background: rgba(245, 158, 11, 0.06);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.92em;
+  }
+  .compare-table td:first-child { text-align: left; font-weight: 500; color: var(--text); }
+  .compare-table .yes { color: var(--success); font-weight: 600; }
+  .compare-table .no { color: var(--text-soft); opacity: 0.6; }
+  .compare-table .highlight { background: rgba(245, 158, 11, 0.04); }
+
+  .value-prop {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .value-item {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    padding: 28px;
+    width: 300px;
+    text-align: center;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: all 0.3s;
+  }
+  .value-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(245, 158, 11, 0.1);
+  }
+  .value-icon {
+    font-size: 2.5em;
+    margin-bottom: 16px;
+    display: inline-block;
+    width: 72px;
+    height: 72px;
+    line-height: 72px;
+    text-align: center;
+    background: var(--gradient);
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.2);
+  }
+  .value-item h3 {
+    font-size: 1.15em;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .value-item p {
+    color: var(--text-soft);
+    font-size: 0.9em;
+    line-height: 1.6;
+  }
+
+  footer {
+    border-top: 1px solid var(--border-soft);
+    padding: 50px 0 40px;
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 0.9em;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+  }
+  footer a { color: var(--link); }
+  footer a:hover { color: var(--accent-2); }
+  .social { display: flex; gap: 20px; justify-content: center; margin: 16px 0; }
+  .footer-logo {
+    font-size: 1.5em;
+    font-weight: 800;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  @media (max-width: 780px) {
+    h1 { font-size: 3em; }
+    .tagline { font-size: 1.05em; }
+    .nav-links { display: none; }
+    section { padding: 60px 0; }
+    h2 { font-size: 2em; }
+    .hero { padding: 70px 0 50px; }
+    .feature { padding: 22px; }
+    .cmd-table th, .cmd-table td { padding: 12px 16px; font-size: 0.85em; }
+    .terminal-body { font-size: 0.78em; padding: 18px; }
+    .compare-table th, .compare-table td { padding: 12px 8px; font-size: 0.85em; }
+    .value-item { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="logo">
+      <span class="logo-icon">💻</span>
+      <span>mi-cc</span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">特性</a>
+      <a href="#compare">对比</a>
+      <a href="#install">安装</a>
+      <a href="#demo">演示</a>
+      <a href="https://github.com/xiaobaotalks/mi-cc">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <div class="badge"><span class="dot"></span>v2.0.0 · MIT License · 国产模型优先</div>
+    <h1>mi-cc</h1>
+    <p class="tagline">自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手。<br />本地终端体验 + MCP Server 模式，让 OpenClaw/Cursor/Claude 获得专属编程能力。</p>
+
+    <div class="features-inline">
+      <span class="feature-pill">🧠 四层记忆</span>
+      <span class="feature-pill">🔄 多模型切换</span>
+      <span class="feature-pill">📦 自动压缩</span>
+      <span class="feature-pill">🎯 自主规划</span>
+      <span class="feature-pill">📚 技能蒸馏</span>
+      <span class="feature-pill">🌐 MCP Server</span>
+    </div>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/xiaobaotalks/mi-cc">⭐ Star on GitHub</a>
+      <a class="btn btn-secondary" href="#install">🚀 快速开始</a>
+      <a class="btn btn-secondary" href="https://token-plan-cn.xiaomimimo.com/">🔑 获取 API Key</a>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="container">
+    <h2>核心特性</h2>
+    <p class="section-sub">8 大核心能力，为开发者量身打造</p>
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🧠</div>
+        <h3>四层记忆系统</h3>
+        <p>checkpoint（会话）/ MEMORY（项目）/ notes（草稿）/ history（日志），启动自动恢复，跨会话持久化。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">💾</div>
+        <h3>任务级 Checkpoint</h3>
+        <p>每次工具调用自动写入任务 checkpoint，记录目标 / 步骤 / 已修改文件 / 阻塞问题，崩溃可续。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔄</div>
+        <h3>多 Provider 故障转移</h3>
+        <p>配置多组 API Key，主 Provider 失败（401/429/5xx）时自动切换，保证对话不中断。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📦</div>
+        <h3>分层摘要压缩</h3>
+        <p>三档触发（60% / 80% / 95%），滚动窗口自动维护最近 N 轮，摘要层持久化，重启不丢。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎯</div>
+        <h3>完整任务执行</h3>
+        <p>agent_execute 自主规划 + 多轮工具调用完成完整编程任务，而非仅支持原子操作。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📚</div>
+        <h3>技能库自动蒸馏</h3>
+        <p>/distill 从历史对话挖掘高频工作流，top-2 匹配技能自动注入 System Prompt，提升回答质量。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <h3>项目索引与问答</h3>
+        <p>/index 扫描代码提取函数/导入/导出；/ask 基于索引进行代码问答，支持 TF-IDF 检索。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🌐</div>
+        <h3>MCP Server 模式</h3>
+        <p>通过 --mcp 参数启动，暴露完整 Agent 能力给 OpenClaw、Cursor、Claude，开箱即用。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare" style="background: linear-gradient(180deg, transparent, rgba(245, 158, 11, 0.03), transparent);">
+  <div class="container">
+    <h2>为什么选择 mi-cc？</h2>
+    <p class="section-sub">与普通 MCP 工具的核心差异</p>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>对比维度</th>
+          <th>mi-cc</th>
+          <th>普通 MCP 工具</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>🧠 记忆系统</td>
+          <td class="yes highlight">四层记忆（checkpoint/MEMORY/notes/history）</td>
+          <td class="no">无</td>
+        </tr>
+        <tr>
+          <td>🔄 模型切换</td>
+          <td class="yes highlight">多 Provider 故障转移，401/429/5xx 自动切换</td>
+          <td class="no">依赖宿主模型，无切换能力</td>
+        </tr>
+        <tr>
+          <td>📦 上下文压缩</td>
+          <td class="yes highlight">分层摘要 + 滚动窗口，超长对话自动压缩</td>
+          <td class="no">依赖宿主处理</td>
+        </tr>
+        <tr>
+          <td>🎯 任务执行</td>
+          <td class="yes highlight">agent_execute 自主规划 + 多轮工具调用</td>
+          <td class="no">仅支持原子操作（读/写/执行）</td>
+        </tr>
+        <tr>
+          <td>📚 技能库</td>
+          <td class="yes highlight">/distill 经验蒸馏，自动挖掘工作流</td>
+          <td class="no">无</td>
+        </tr>
+        <tr>
+          <td>🔍 项目索引</td>
+          <td class="yes highlight">/index 扫描代码，/ask 语义问答</td>
+          <td class="no">无</td>
+        </tr>
+        <tr>
+          <td>💾 状态持久化</td>
+          <td class="yes highlight">任务级 checkpoint，崩溃可续</td>
+          <td class="no">无</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="value-prop" style="margin-top: 48px;">
+      <div class="value-item">
+        <div class="value-icon">🚀</div>
+        <h3>本地编程助手</h3>
+        <p>无缝终端体验，超长对话自动压缩，任务断点续跑，不依赖任何宿主</p>
+      </div>
+      <div class="value-item">
+        <div class="value-icon">🔗</div>
+        <h3>MCP 服务端</h3>
+        <p>让 OpenClaw/Cursor/Claude 获得专属编程能力，自主规划完成完整任务</p>
+      </div>
+      <div class="value-item">
+        <div class="value-icon">⚡</div>
+        <h3>多模型保障</h3>
+        <p>配置多组 API Key，自动故障转移，单个模型故障不中断任务执行</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="container">
+    <h2>快速开始</h2>
+    <p class="section-sub">3 步即可在任意终端运行</p>
+
+    <div class="install-steps">
+      <div class="step">
+        <h3><span class="step-num">1</span>克隆并安装依赖</h3>
+        <pre><code>git clone https://github.com/xiaobaotalks/mi-cc.git
+cd mi-cc
+npm install</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+      </div>
+
+      <div class="step">
+        <h3><span class="step-num">2</span>配置 API（默认对接小米 MiMo）</h3>
+        <pre><code>cp .env.example .env
+# 编辑 .env，填入 API_KEY，MODEL 默认 mimo-v2.5-pro</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+      </div>
+
+      <div class="step">
+        <h3><span class="step-num">3</span>启动</h3>
+        <pre><code>npm run dev            # 开发模式
+# 或
+npm link && mi-cc      # 全局安装后直接使用
+mi-cc --mcp            # 以 MCP Server 模式运行</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="container">
+    <h2>运行演示</h2>
+    <p class="section-sub">从提问到工具调用，一气呵成</p>
+
+    <div class="terminal-demo">
+      <div class="terminal-header">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+        <span class="terminal-title">mi-cc v2.0.0 — mimo-v2.5-pro</span>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-line terminal-border-top">
+          <span class="terminal-info">[配置]</span> 模型 mimo-v2.5-pro · 自动设置 maxTokens=1000000
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">[会话]</span> 新会话 session-20260622 · 启动
+        </div>
+        <div class="terminal-line terminal-border-top">
+          <span class="terminal-prompt">&gt;</span> <span class="terminal-input">帮我创建一个 Todo 应用的项目结构</span>
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">[助手]</span> 好的，我来规划并执行这个任务。
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-success">✓</span> writeFile({ "path": "package.json", ... }) · 耗时 38ms
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-success">✓</span> writeFile({ "path": "src/App.tsx", ... }) · 耗时 24ms
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-success">✓</span> runShell("npm install") · 耗时 12450ms
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-success">✓</span> runShell("npm run build") · 耗时 3820ms
+        </div>
+        <div class="terminal-line terminal-border-top">
+          <span class="terminal-info">[任务]</span> ✅ Todo 应用创建完成！
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-logo">mi-cc</div>
+    <p>自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手</p>
+    <div class="social">
+      <a href="https://github.com/xiaobaotalks/mi-cc">GitHub 仓库</a>
+      <a href="https://github.com/xiaobaotalks/mi-cc/issues">问题反馈</a>
+      <a href="https://token-plan-cn.xiaomimimo.com/">MiMo 平台</a>
+    </div>
+    <p style="margin-top: 20px; font-size: 0.85em; opacity: 0.7;">
+      MIT License · 2026 · 与 MiMo / OpenAI 等大模型协同工作
+    </p>
+  </div>
+</footer>
+
+<script>
+  function copyCode(btn) {
+    const code = btn.previousElementSibling.textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      const original = btn.textContent;
+      btn.textContent = '已复制 ✓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  }
+
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href');
+      if (id.length > 1) {
+        e.preventDefault();
+        document.querySelector(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.feature, .step, .value-item').forEach((el, i) => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = `opacity 0.5s ease ${i * 0.05}s, transform 0.5s ease ${i * 0.05}s`;
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
