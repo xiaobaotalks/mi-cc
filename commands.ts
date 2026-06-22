@@ -41,9 +41,24 @@ import * as readline from 'readline';
 /** 预置的模型配置模板 */
 const PRESET_PROVIDERS = [
   {
-    name: '小米 MiMo',
+    name: '小米 MiMo (推荐)',
     baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
     models: ['mimo-v2.5-pro', 'mimo-v2.5', 'mimo-v2-pro', 'mimo-v2-omni'],
+  },
+  {
+    name: '智谱 GLM',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: ['glm-4-plus', 'glm-4-flash', 'glm-4-air'],
+  },
+  {
+    name: '月之暗面 Moonshot',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    models: ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'],
+  },
+  {
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-coder'],
   },
   {
     name: 'OpenAI',
@@ -56,22 +71,12 @@ const PRESET_PROVIDERS = [
     models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'],
   },
   {
-    name: '智谱 GLM',
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: ['glm-4-plus', 'glm-4-flash'],
+    name: '硅基流动 (SiliconFlow)',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct'],
   },
   {
-    name: '月之暗面 Moonshot',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-128k', 'moonshot-v1-32k'],
-  },
-  {
-    name: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com/v1',
-    models: ['deepseek-chat', 'deepseek-reasoner'],
-  },
-  {
-    name: '自定义',
+    name: '自定义 (OpenAI 兼容)',
     baseUrl: '',
     models: [],
   },

@@ -89,7 +89,14 @@ const BANNER = `
 
 function initConfig(): Config {
   dotenv.config({ path: '.env' });
-  const model = process.env.MODEL || 'gpt-4o-mini';
+
+  // 默认配置：优先使用国产大模型（MiMo），兼容 OpenAI 通道
+  const defaultModel = 'mimo-v2.5-pro';
+  const defaultBaseUrl = 'https://token-plan-cn.xiaomimimo.com/v1';
+
+  const model = process.env.MODEL || defaultModel;
+  const baseUrl = process.env.BASE_URL || defaultBaseUrl;
+
   // 自动根据模型推断上下文窗口；用户可通过 MAX_TOKEN 显式覆盖
   const envMaxToken = process.env.MAX_TOKEN ? parseInt(process.env.MAX_TOKEN, 10) : null;
   const inferred = envMaxToken ?? resolveContextWindow(model) ?? 8000;
@@ -98,7 +105,7 @@ function initConfig(): Config {
   }
   return {
     apiKey: process.env.API_KEY || '',
-    baseUrl: process.env.BASE_URL || 'https://api.openai.com/v1',
+    baseUrl,
     model,
     maxTokens: inferred,
   };

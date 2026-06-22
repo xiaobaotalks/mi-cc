@@ -2,7 +2,7 @@
 
 最简化版智能编程助手，终端对话 + 工具调用 + 四层记忆 + 分层摘要压缩 + 经验蒸馏 + 技能库 + MCP Server 模式。
 
-> 默认对接小米 MiMo（`https://token-plan-cn.xiaomimimo.com/v1`），兼容任意 OpenAI Chat Completions 协议端点。
+> 默认对接国产大模型（小米 MiMo），兼容任意 OpenAI Chat Completions 协议通道（OpenAI / Claude / GLM / Moonshot / DeepSeek / 硅基流动等）。
 
 ## 安装
 
@@ -18,7 +18,7 @@ npm install
 cp .env.example .env
 ```
 
-`.env` 内容示例（小米 MiMo）：
+`.env` 内容示例（默认小米 MiMo，可切换为其他国产或 OpenAI 兼容通道）：
 
 ```
 API_KEY=your_api_key_here
@@ -84,7 +84,7 @@ mi-cc --mcp
 
 ### 3. 按模型自动识别上下文窗口
 
-内置 13 个主流模型映射（MiMo 1M / GPT-4o 128K / Claude 200K / DeepSeek 64K / GLM-4 128K / Moonshot 128K 等）。启动时若未设置 `MAX_TOKEN` 会自动按模型设置。
+内置 13 个主流模型映射（MiMo 1M / GLM-4 128K / Moonshot 128K / DeepSeek 64K / GPT-4o 128K / Claude 200K / 硅基流动 等）。启动时若未设置 `MAX_TOKEN` 会自动按模型设置。
 
 > LLM 报错 `context_length_exceeded` / `prompt too long` 时，CLI 会自动降级 `maxTokens`（×0.9）并强制压缩后重试一次。
 
