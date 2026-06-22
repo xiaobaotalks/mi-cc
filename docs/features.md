@@ -1,4 +1,4 @@
-# micli 功能改进详细设计
+# mi-cc 功能改进详细设计
 
 > 对应升级计划: [plan.md](./plan.md)  
 > 日期: 2026-06-22
@@ -24,12 +24,12 @@
 
 - **零改动核心逻辑**：现有 `agentLoop()` / `callLLM()` / `buildSystemPrompt()` 等函数完全不变
 - **最小代码增量**：新增 ~83 行代码（一个 `mcp-mode.ts` + 入口分支）
-- **双模式共存**：`micli` 走 CLI 模式，`micli --mcp` 走 MCP Server 模式
+- **双模式共存**：`mi-cc` 走 CLI 模式，`mi-cc --mcp` 走 MCP Server 模式
 
 ### 1.2 架构
 
 ```
-micli
+mi-cc
 ├── CLI 模式（现有）
 │   └── readline → agentLoop() → console.log 输出
 │
@@ -54,7 +54,7 @@ async function mcpMode() {
   initMcpTools(tools, (cmd, timeout) => toolRunShell({ command: cmd, timeout }));
 
   const server = new Server(
-    { name: 'micli', version: '1.0.0' },
+    { name: 'mi-cc', version: '1.0.0' },
     { capabilities: { tools: {}, resources: {} } }
   );
 
@@ -101,7 +101,7 @@ async function mcpMode() {
 ```json
 {
   "mcpServers": {
-    "micli": {
+    "mi-cc": {
       "command": "npx",
       "args": ["-y", "mimo-cli@latest", "--mcp"],
       "env": {
@@ -118,8 +118,8 @@ async function mcpMode() {
 ```json
 {
   "mcpServers": {
-    "micli": {
-      "command": "micli",
+    "mi-cc": {
+      "command": "mi-cc",
       "args": ["--mcp"]
     }
   }

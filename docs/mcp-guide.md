@@ -1,4 +1,4 @@
-# micli MCP Server 接入指南
+# mi-cc MCP Server 接入指南
 
 > 版本: 1.1.0  
 > 日期: 2026-06-22  
@@ -26,17 +26,17 @@ npx mimo-cli@latest --mcp
 
 # 方式二：全局安装
 npm install -g mimo-cli
-micli --mcp
+mi-cc --mcp
 
 # 方式三：本地安装
 cd your-project
 npm install --save-dev mimo-cli
-npx micli --mcp
+npx mi-cc --mcp
 ```
 
 ### 1.2 环境变量
 
-micli MCP Server 通过环境变量读取配置：
+mi-cc MCP Server 通过环境变量读取配置：
 
 ```bash
 export API_KEY=your_api_key_here
@@ -49,7 +49,7 @@ export MAX_TOKEN=8000
 ### 1.3 验证启动
 
 ```bash
-micli --mcp
+mi-cc --mcp
 # 应输出 JSON-RPC 初始化消息，无报错
 ```
 
@@ -64,7 +64,7 @@ micli --mcp
 ```json
 {
   "mcpServers": {
-    "micli": {
+    "mi-cc": {
       "command": "npx",
       "args": ["-y", "mimo-cli@latest", "--mcp"],
       "env": {
@@ -85,8 +85,8 @@ micli --mcp
 ```json
 {
   "mcpServers": {
-    "micli": {
-      "command": "micli",
+    "mi-cc": {
+      "command": "mi-cc",
       "args": ["--mcp"],
       "env": {
         "API_KEY": "your_api_key_here"
@@ -103,8 +103,8 @@ micli --mcp
 ```json
 {
   "mcpServers": {
-    "micli": {
-      "command": "/usr/local/bin/micli",
+    "mi-cc": {
+      "command": "/usr/local/bin/mi-cc",
       "args": ["--mcp"],
       "env": {
         "API_KEY": "your_api_key_here"
@@ -121,7 +121,7 @@ micli --mcp
 ```json
 {
   "servers": {
-    "micli": {
+    "mi-cc": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "mimo-cli@latest", "--mcp"],
@@ -170,13 +170,13 @@ micli --mcp
 
 ### 4.1 方式一：agent_execute（推荐）
 
-让 micli 自主完成完整任务：
+让 mi-cc 自主完成完整任务：
 
 ```
-用户: @micli 帮我修复 src/utils.ts 中的类型错误
+用户: @mi-cc 帮我修复 src/utils.ts 中的类型错误
 
-→ 宿主调用 micli/agent_execute
-→ micli 内部执行：
+→ 宿主调用 mi-cc/agent_execute
+→ mi-cc 内部执行：
    1. readFile("src/utils.ts")
    2. 分析错误
    3. writeFile("src/utils.ts", fixedContent)
@@ -191,7 +191,7 @@ micli --mcp
 ```
 用户: 读取 src/config.ts
 
-→ 宿主调用 micli/readFile
+→ 宿主调用 mi-cc/readFile
 → 返回文件内容
 → 宿主 LLM 分析后决定下一步
 ```
@@ -201,7 +201,7 @@ micli --mcp
 在对话开始时注入项目背景：
 
 ```
-→ 宿主读取 micli/memory://project
+→ 宿主读取 mi-cc/memory://project
 → 将 MEMORY.md 内容注入 System Prompt
 → 后续对话中 LLM 了解项目架构
 ```
@@ -217,7 +217,7 @@ micli --mcp
 npm ls @modelcontextprotocol/sdk
 
 # 手动测试启动
-micli --mcp
+mi-cc --mcp
 # 应看到 JSON-RPC 消息，无报错退出
 ```
 
@@ -225,7 +225,7 @@ micli --mcp
 
 - 检查环境变量 `API_KEY` 是否设置
 - 检查 `BASE_URL` 是否可访问
-- 查看 micli 输出日志（如有）
+- 查看 mi-cc 输出日志（如有）
 
 ### 5.3 agent_execute 返回空结果
 

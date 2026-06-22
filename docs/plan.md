@@ -1,4 +1,4 @@
-# micli 优化升级计划
+# mi-cc 优化升级计划
 
 > 版本: 1.1.0-planned  
 > 日期: 2026-06-22  
@@ -8,7 +8,7 @@
 
 ## 一、项目现状
 
-micli 是一个终端智能编程助手，当前版本 1.0.0，核心能力包括：
+mi-cc 是一个终端智能编程助手，当前版本 1.0.0，核心能力包括：
 
 - 终端对话 + LLM 工具调用（readFile / writeFile / runShell / git）
 - 四层记忆系统（checkpoint / MEMORY / notes / history）
@@ -71,7 +71,7 @@ Week 1
 │   ├── 新增 mcp-mode.ts（~80 行）
 │   ├── mimo-cli.ts 入口加 --mcp 分支（+3 行）
 │   ├── package.json 加 optionalDependencies
-│   └── 测试：npx micli --mcp 可启动
+│   └── 测试：npx mi-cc --mcp 可启动
 ├── Day 3-4: 压缩模块修复
 │   ├── 修复 tieredCompact 摘要编号冲突
 │   ├── 启动时加载 compress-state.json 恢复摘要层
@@ -176,7 +176,7 @@ Week 11-12: 代码库理解
 
 | 版本 | 时间 | 核心交付物 | 验收标准 |
 |------|------|-----------|----------|
-| v1.1.0 | 2 周后 | MCP Server + 压缩修复 + 超时重试 + 安全加固 | `micli --mcp` 可被 Cursor/OpenClaw 调用；`npm run test` 通过；`tsc --noEmit` 无错误 |
+| v1.1.0 | 2 周后 | MCP Server + 压缩修复 + 超时重试 + 安全加固 | `mi-cc --mcp` 可被 Cursor/OpenClaw 调用；`npm run test` 通过；`tsc --noEmit` 无错误 |
 | v1.2.0 | 6 周后 | AppState + LLM Provider + ProviderRouter + 测试覆盖 | 支持 3+ 模型供应商；单元测试覆盖率 > 60%；零全局变量 |
 | v2.0.0 | 3 月后 | Loop 优化 + TUI + 多会话 + 代码库 RAG | Planner-Reviewer 闭环；流式输出；多会话切换 < 1s |
 
@@ -216,4 +216,4 @@ npx tsc --noEmit
 ---
 
 *文档版本: 2026-06-22*  
-*维护者: micli 核心团队*
+*维护者: mi-cc 核心团队*
