@@ -31,6 +31,8 @@ import {
   SLASH_COMMANDS,
   type SlashContext,
 } from './commands';
+// 启动时自动加载上次激活的 Provider
+import { loadProviders } from './commands';
 import {
   readCheckpoint,
   writeCheckpoint,
@@ -500,6 +502,21 @@ async function main() {
   initMcpTools(tools, (cmd, timeout) =>
     toolRunShell({ command: cmd, timeout }),
   );
+
+  // 启动时自动加载上次激活的 Provider（覆盖 .env 中的配置）
+  try {
+    const providers = loadProviders();
+    const active = providers.find(p => p.active);
+    if (active) {
+      config.apiKey = active.apiKey;
+      config.baseUrl = active.baseUrl;
+      config.model = active.model;
+      openai = initOpenAI(config);
+      console.log(`[Provider] 已加载: ${active.name} (${active.model})`);
+    }
+  } catch {
+    // ignore
+  }
 
   // 构建斜杠命令上下文
   slashCtx = {

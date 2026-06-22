@@ -385,6 +385,138 @@ function handleSkillCommand(args: string[]): void {
   }
 }
 
+// ==================== /provider ====================
+
+/** Provider 配置持久化文件 */
+const PROVIDER_FILE = 'providers.json';
+
+interface ProviderEntry {
+  id: string;
+  name: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  active: boolean;
+}
+
+function loadProviders(): ProviderEntry[] {
+  try {
+    if (fs.existsSync(PROVIDER_FILE)) {
+      return JSON.parse(fs.readFileSync(PROVIDER_FILE, 'utf-8'));
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+function saveProviders(providers: ProviderEntry[]): void {
+  fs.writeFileSync(PROVIDER_FILE, JSON.stringify(providers, null, 2), 'utf-8');
+}
+
+function getActiveProvider(providers: ProviderEntry[]): ProviderEntry | null {
+  return providers.find(p => p.active) || providers[0] || null;
+}
+
+function handleProviderCommand(ctx: SlashContext, args: string[]): void {
+  const sub = args[0] || 'list';
+  const providers = loadProviders();
+
+  switch (sub) {
+    case 'list': {
+      if (providers.length === 0) {
+        console.log('[Provider] 暂无已保存的 Provider');
+        console.log('提示: 使用 /connect 配置后，可用 /provider save <name> 保存');
+        return;
+      }
+      console.log(`[Provider] 共 ${providers.length} 个配置：`);
+      for (const p of providers) {
+        const active = p.active ? ' ● 当前' : '';
+        const keyHint = p.apiKey ? `(${p.apiKey.slice(0, 8)}...)` : '(无 key)';
+        console.log(`  ${p.id === getActiveProvider(providers)?.id ? '▸' : ' '} ${p.name} ${keyHint} / ${p.model}${active}`);
+      }
+      console.log('\n用法: /provider switch <id>  切换');
+      console.log('      /provider save <name>   保存当前配置');
+      console.log('      /provider remove <id>   删除');
+      return;
+    }
+
+    case 'save': {
+      const name = args[1] || ctx.config.model;
+      const entry: ProviderEntry = {
+        id: `p_${Date.now()}`,
+        name,
+        apiKey: ctx.config.apiKey,
+        baseUrl: ctx.config.baseUrl,
+        model: ctx.config.model,
+        active: false,
+      };
+      providers.push(entry);
+      saveProviders(providers);
+      console.log(`[Provider] 已保存: ${name} (${ctx.config.model})`);
+      return;
+    }
+
+    case 'switch': {
+      const targetId = args[1];
+      if (!targetId) {
+        console.log('[Provider] 用法: /provider switch <id>');
+        return;
+      }
+      const target = providers.find(p => p.id === targetId || p.name === targetId);
+      if (!target) {
+        console.log(`[Provider] 未找到: ${targetId}`);
+        return;
+      }
+      // 切换 active 状态
+      for (const p of providers) p.active = false;
+      target.active = true;
+      saveProviders(providers);
+
+      // 应用配置
+      ctx.config.apiKey = target.apiKey;
+      ctx.config.baseUrl = target.baseUrl;
+      ctx.config.model = target.model;
+      ctx.openai = new OpenAI({
+        apiKey: target.apiKey,
+        baseURL: target.baseUrl,
+      });
+
+      // 同步到 .env
+      const envContent = `API_KEY=${target.apiKey}
+BASE_URL=${target.baseUrl}
+MODEL=${target.model}
+MAX_TOKEN=${ctx.config.maxTokens}
+`;
+      fs.writeFileSync('.env', envContent, 'utf-8');
+
+      console.log(`[Provider] 已切换到: ${target.name} (${target.model})`);
+      return;
+    }
+
+    case 'remove': {
+      const removeId = args[1];
+      if (!removeId) {
+        console.log('[Provider] 用法: /provider remove <id>');
+        return;
+      }
+      const idx = providers.findIndex(p => p.id === removeId || p.name === removeId);
+      if (idx === -1) {
+        console.log(`[Provider] 未找到: ${removeId}`);
+        return;
+      }
+      const removed = providers.splice(idx, 1)[0];
+      saveProviders(providers);
+      console.log(`[Provider] 已删除: ${removed.name}`);
+      return;
+    }
+
+    default:
+      console.log(`[Provider] 未知子命令: ${sub}`);
+      console.log('用法: /provider list | save <name> | switch <id> | remove <id>');
+  }
+}
+
 // ==================== /tools ====================
 
 function handleToolsCommand(ctx: SlashContext): void {
@@ -424,6 +556,10 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
       handleSkillCommand(args);
       return true;
 
+    case '/provider':
+      handleProviderCommand(ctx, args);
+      return true;
+
     case '/tools':
       handleToolsCommand(ctx);
       return true;
@@ -436,7 +572,8 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
     case '/help':
       console.log(`
 可用命令:
-  /connect <api_key> [base_url] [model]  - 设置 API 配置
+  /connect [api_key] [base_url] [model]  - 设置 API 配置（无参数启动交互向导）
+  /provider [list|save|switch|remove]    - 管理多模型 Provider 配置
   /compact                               - 手动压缩上下文
   /distill                               - 经验蒸馏，生成技能库
   /dream                                 - 记忆整理
@@ -477,7 +614,8 @@ export function initMcpTools(
 
 /** 斜杠命令清单（用于 Tab 补全 + 提示） */
 export const SLASH_COMMANDS: Array<{ name: string; description: string; subArgs?: string[] }> = [
-  { name: '/connect', description: '设置 API 配置', subArgs: ['<api_key>', '[base_url]', '[model]'] },
+  { name: '/connect', description: '设置 API 配置（无参数启动交互向导）', subArgs: ['[api_key]', '[base_url]', '[model]'] },
+  { name: '/provider', description: '管理多模型 Provider 配置', subArgs: ['list', 'save', 'switch', 'remove'] },
   { name: '/compact', description: '手动压缩上下文' },
   { name: '/distill', description: '经验蒸馏，生成技能库' },
   { name: '/dream', description: '记忆整理' },
