@@ -241,4 +241,4 @@ micli --mcp
 ---
 
 *文档版本: 2026-06-22*  
-*问题反馈: https://github.com/xiaobaotalks/milci/issues*
+*问题反馈: https://github.com/xiaobaotalks/mi-cc/issues*

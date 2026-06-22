@@ -197,8 +197,8 @@ Week 11-12: 代码库理解
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/xiaobaotalks/milci.git
-cd milci
+git clone https://github.com/xiaobaotalks/mi-cc.git
+cd mi-cc
 
 # 2. 安装依赖
 npm install
