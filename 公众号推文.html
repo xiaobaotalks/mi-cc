@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mi-cc 公众号推文预览</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #333333;
+    --text-soft: #666666;
+    --accent: #f59e0b;
+    --accent-2: #ef4444;
+    --code-bg: #f5f5f5;
+    --border: #e5e5e5;
+    --quote-bg: #fffbeb;
+    --link: #ea580c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 公众号风格标题 */
+  h1 {
+    font-size: 1.6em;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 16px;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+
+  .subtitle {
+    font-size: 0.95em;
+    color: var(--text-soft);
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .subtitle strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  h2 {
+    font-size: 1.15em;
+    font-weight: 700;
+    margin: 32px 0 16px;
+    color: var(--text);
+    position: relative;
+    padding-left: 12px;
+  }
+
+  h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+  }
+
+  h3 {
+    font-size: 1em;
+    font-weight: 600;
+    margin: 20px 0 12px;
+    color: var(--text);
+  }
+
+  p {
+    margin-bottom: 16px;
+    text-align: justify;
+  }
+
+  strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* 引用块 */
+  blockquote {
+    background: var(--quote-bg);
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--text-soft);
+  }
+
+  /* 代码块 */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+    font-size: 0.85em;
+    line-height: 1.6;
+  }
+
+  code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+    font-size: 0.85em;
+    color: var(--accent);
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    color: var(--text);
+  }
+
+  /* 表格 */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.9em;
+  }
+
+  th, td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    background: var(--code-bg);
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  td:first-child {
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  /* 列表 */
+  ul, ol {
+    margin: 16px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    margin-bottom: 8px;
+  }
+
+  /* 分隔线 */
+  hr {
+    border: none;
+    height: 1px;
+    background: var(--border);
+    margin: 30px 0;
+  }
+
+  /* 结尾链接 */
+  .footer-links {
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-links p {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .footer-links a {
+    display: inline-block;
+    padding: 8px 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border-radius: 8px;
+    font-weight: 600;
+    margin: 8px 4px;
+    text-decoration: none;
+    transition: transform 0.2s;
+  }
+
+  .footer-links a:hover {
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+
+  /* 场景卡片 */
+  .scene-card {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(239, 68, 68, 0.05));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+
+  .scene-card h3 {
+    margin-top: 0;
+    color: var(--accent);
+  }
+
+  /* 预览提示 */
+  .preview-tip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    font-size: 0.85em;
+    font-weight: 500;
+    z-index: 100;
+  }
+
+  .preview-tip a {
+    color: #fff;
+    text-decoration: underline;
+  }
+
+  body {
+    padding-top: 60px;
+  }
+
+  /* 响应式 */
+  @media (max-width: 480px) {
+    body {
+      padding: 20px 16px;
+      padding-top: 50px;
+    }
+    h1 { font-size: 1.4em; }
+    h2 { font-size: 1.05em; }
+    table { font-size: 0.85em; }
+    th, td { padding: 8px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="preview-tip">
+  📝 公众号推文预览 · 源文件：<a href="file:///workspace/公众号推文.md">公众号推文.md</a>
+</div>
+
+<h1>终端里的 AI 编程助手，不只是聊天那么简单</h1>
+
+<p class="subtitle"><strong>mi-cc 发布 v2.0：四层记忆 + 多模型故障转移 + MCP Server</strong></p>
+
+<hr>
+
+<h2>写在前面</h2>
+
+<p>用过 Cursor、Claude Desktop 的朋友应该都有这个体验：AI 助手确实能写代码，但聊久了上下文就丢了，API 一报错整个对话就断了，而且每次重启都得从头开始。</p>
+
+<p>如果有一个工具，能把对话记忆像游戏存档一样保存，API 出问题时自动切换到备用模型，还能接入你常用的 AI 客户端作为专业编程助手——这就是 mi-cc 正在做的事。</p>
+
+<hr>
+
+<h2>mi-cc 是什么</h2>
+
+<p>mi-cc 是一个运行在终端里的 AI 编程助手。它默认对接国产大模型（小米 MiMo），同时也兼容 DeepSeek、月之暗面、智谱 GLM 等任意 OpenAI 协议通道。</p>
+
+<p>和常见的 AI 聊天工具不同，mi-cc 从设计之初就考虑了两个核心场景：</p>
+
+<div class="scene-card">
+  <h3>场景一：本地终端编程助手</h3>
+  <p>直接在命令行里和 AI 对话，让它帮你读代码、改文件、跑命令、做重构。对话过程中自动保存进度，即使电脑重启也能接着上次的位置继续。</p>
+</div>
+
+<div class="scene-card">
+  <h3>场景二：MCP Server 接入主流 AI 客户端</h3>
+  <p>通过 <code>--mcp</code> 参数启动，mi-cc 可以作为 MCP Server 被 OpenClaw、Cursor、Claude Desktop 等宿主调用。宿主获得的不只是"读文件""写文件"这样的原子操作，而是完整的编程任务执行能力——自主规划、多轮工具调用、自动压缩上下文、任务断点续跑。</p>
+</div>
+
+<hr>
+
+<h2>四层记忆：对话不会白聊</h2>
+
+<p>mi-cc 的记忆系统分四层，每一层解决不同的问题：</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>层级</th>
+      <th>作用</th>
+      <th>解决什么问题</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>checkpoint</td>
+      <td>当前会话检查点</td>
+      <td>重启后自动恢复对话位置</td>
+    </tr>
+    <tr>
+      <td>MEMORY</td>
+      <td>跨会话项目记忆</td>
+      <td>长期记住项目架构、编码规范</td>
+    </tr>
+    <tr>
+      <td>notes</td>
+      <td>临时笔记</td>
+      <td>记录待办、调试思路</td>
+    </tr>
+    <tr>
+      <td>history</td>
+      <td>完整对话历史</td>
+      <td>随时回溯之前的讨论</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>实际使用中的感受是：早上和 mi-cc 讨论了一个架构方案，下午打开终端，它还记得上午聊到哪了，甚至记得你说过"这里先用占位符，后面再优化"。</p>
+
+<hr>
+
+<h2>多模型故障转移：一个 API 挂了，自动换下一个</h2>
+
+<p>配置多组 API Key 后，mi-cc 会在后台维护一个 Provider 列表。当主模型返回 401（Key 失效）、429（速率限制）或 5xx（服务异常）时，自动切换到下一个可用模型，整个过程对用户透明。</p>
+
+<p>对于需要长时间运行的复杂任务（比如批量重构、代码审查），这个功能意味着你不需要守在电脑前盯着，即使某个模型临时不可用，任务也能继续执行。</p>
+
+<hr>
+
+<h2>分层摘要压缩：聊再久也不丢上下文</h2>
+
+<p>和 AI 聊久了，上下文窗口总会满。mi-cc 的处理方式是分三档自动压缩：</p>
+
+<ul>
+  <li>60% 时告警，让你知道快满了</li>
+  <li>80% 时把早期对话压缩成摘要，保留最近 5 轮原文</li>
+  <li>95% 时紧急合并，保留最近 3 轮</li>
+</ul>
+
+<p>压缩后的摘要会持久化到本地，重启后仍然有效。这意味着你可以和 mi-cc 聊上几十轮，它依然记得项目背景和你之前的决策。</p>
+
+<hr>
+
+<h2>MCP Server：让 Cursor/Claude 获得"完整编程能力"</h2>
+
+<p>这是 mi-cc 区别于普通 MCP 工具的核心差异。</p>
+
+<p>普通 MCP 工具暴露给宿主的能力通常是原子操作：读文件、写文件、执行命令。宿主 AI 需要自己去规划"先读哪个文件、再改哪行代码"。</p>
+
+<p>mi-cc 暴露的 <code>agent_execute</code> 工具则不同。它内部包含完整的 Agent 循环：接收任务、规划步骤、调用工具、处理结果、压缩上下文。宿主只需要说"帮我修复这个类型错误"，mi-cc 会自动完成读取、分析、修改、验证的全流程。</p>
+
+<p>接入方式很简单，在 OpenClaw 的配置里加几行就行：</p>
+
+<pre><code>{
+  "mcpServers": {
+    "mi-cc": {
+      "command": "mi-cc",
+      "args": ["--mcp"],
+      "env": { "API_KEY": "your_key" }
+    }
+  }
+}</code></pre>
+
+<hr>
+
+<h2>技能库：越用越懂你</h2>
+
+<p>mi-cc 支持从对话历史中自动蒸馏技能。比如你和它讨论过几次"如何优雅地处理 TypeScript 错误"，执行 <code>/distill</code> 后，这段经验就会被提取成技能，写入 <code>skill-lib.md</code>。</p>
+
+<p>以后当你提到"重构""类型安全"这类关键词时，mi-cc 会自动把相关技能注入到 System Prompt 中，回答质量明显提升。</p>
+
+<hr>
+
+<h2>项目索引：代码库的智能搜索引擎</h2>
+
+<p><code>/index</code> 命令会扫描项目中的 ts/js/json/md 文件，提取函数定义、导入导出关系，建立索引。之后你可以用 <code>/ask</code> 提问：</p>
+
+<blockquote>
+  "这个项目中的 handleToolCalls 函数是做什么的？"
+</blockquote>
+
+<p>mi-cc 会基于索引找到相关文件，调用 LLM 给出准确的回答。对于接手新项目或回顾自己几个月前写的代码，这个功能非常实用。</p>
+
+<hr>
+
+<h2>三步上手</h2>
+
+<pre><code># 1. 克隆安装
+git clone https://github.com/xiaobaotalks/mi-cc.git
+cd mi-cc && npm install
+
+# 2. 配置 API Key
+cp .env.example .env
+# 编辑 .env，填入 API_KEY
+
+# 3. 启动
+npm run dev</code></pre>
+
+<p>配置支持小米 MiMo、DeepSeek、月之暗面、智谱 GLM、腾讯混元、百度千帆、阿里通义千问等国产模型，也支持 OpenAI 兼容通道。</p>
+
+<hr>
+
+<h2>写在最后</h2>
+
+<p>mi-cc 的定位不是一个"更好的聊天工具"，而是一个"能长期陪伴的编程助手"。它解决的是实际开发中的痛点：对话丢失、API 不稳定、上下文超限、重复解释项目背景。</p>
+
+<p>如果你经常需要在终端里和 AI 协作写代码，或者想让 Cursor/Claude 获得更专业的编程能力，可以试试看。</p>
+
+<div class="footer-links">
+  <p><strong>GitHub：</strong>https://github.com/xiaobaotalks/mi-cc</p>
+  <p><strong>在线体验：</strong>https://xiaobaotalks.github.io/mi-cc/</p>
+  <a href="https://github.com/xiaobaotalks/mi-cc" target="_blank">⭐ Star on GitHub</a>
+  <a href="https://xiaobaotalks.github.io/mi-cc/" target="_blank">🌐 在线体验</a>
+</div>
+
+</body>
+</html>
