@@ -11,94 +11,33 @@
 
 <style>
 /* ============================================
-   主题 A: 极简白 + 蓝紫渐变 (Vercel/Linear)
+   MiMo 官网风格 · 深色主题 + 小米橙强调色
    ============================================ */
-:root[data-theme="a"] {
-  --bg-0: #ffffff;
-  --bg-1: #f8f9fc;
-  --bg-2: #f1f3f8;
-  --card: #ffffff;
-  --card-solid: #ffffff;
-  --border: rgba(99, 102, 241, 0.15);
-  --border-soft: rgba(0, 0, 0, 0.06);
-  --text: #111827;
-  --text-soft: #6b7280;
-  --accent: #6366f1;
-  --accent-2: #8b5cf6;
-  --accent-3: #a78bfa;
-  --success: #10b981;
-  --link: #6366f1;
-  --code-bg: #f8f9fc;
-  --code-border: rgba(99, 102, 241, 0.15);
-  --glow: 0 0 30px rgba(99, 102, 241, 0.15);
-  --gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
-  --hero-bg: radial-gradient(circle at 50% 20%, rgba(99, 102, 241, 0.08), transparent 50%);
-  --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(99, 102, 241, 0.06);
-  --card-shadow-hover: 0 4px 12px rgba(0,0,0,0.08), 0 12px 32px rgba(99, 102, 241, 0.12);
-  --terminal-bg: #1e293b;
-  --terminal-header: #334155;
-  --nav-bg: rgba(255, 255, 255, 0.9);
-}
-
-/* ============================================
-   主题 B: 赛博朋克 + 霓虹绿 (Hacker)
-   ============================================ */
-:root[data-theme="b"] {
-  --bg-0: #0a0a0a;
-  --bg-1: #0f0f0f;
-  --bg-2: #141414;
-  --card: #1a1a1a;
-  --card-solid: #1a1a1a;
-  --border: rgba(0, 255, 65, 0.2);
+:root {
+  --bg-0: #0a0a0f;
+  --bg-1: #12121a;
+  --bg-2: #1a1a25;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-solid: #1a1a25;
+  --border: rgba(255, 105, 0, 0.15);
   --border-soft: rgba(255, 255, 255, 0.06);
-  --text: #e0e0e0;
-  --text-soft: #808080;
-  --accent: #00ff41;
-  --accent-2: #00d4ff;
-  --accent-3: #00ff9f;
-  --success: #00ff41;
-  --link: #00d4ff;
-  --code-bg: #0a0a0a;
-  --code-border: rgba(0, 255, 65, 0.3);
-  --glow: 0 0 30px rgba(0, 255, 65, 0.3);
-  --gradient: linear-gradient(135deg, #00ff41, #00d4ff);
-  --hero-bg: radial-gradient(circle at 30% 30%, rgba(0, 255, 65, 0.08), transparent 40%),
-              radial-gradient(circle at 70% 70%, rgba(0, 212, 255, 0.06), transparent 40%);
-  --card-shadow: 0 0 20px rgba(0, 255, 65, 0.05);
-  --card-shadow-hover: 0 0 30px rgba(0, 255, 65, 0.15);
-  --terminal-bg: #000000;
-  --terminal-header: #0a0a0a;
-  --nav-bg: rgba(10, 10, 10, 0.95);
-}
-
-/* ============================================
-   主题 C: 暖调渐变 + 毛玻璃 (Apple/Notion)
-   ============================================ */
-:root[data-theme="c"] {
-  --bg-0: #fefbf6;
-  --bg-1: #fef7ed;
-  --bg-2: #fdf4e7;
-  --card: rgba(255, 255, 255, 0.7);
-  --card-solid: #ffffff;
-  --border: rgba(245, 158, 11, 0.15);
-  --border-soft: rgba(0, 0, 0, 0.04);
-  --text: #292524;
-  --text-soft: #78716c;
-  --accent: #f59e0b;
-  --accent-2: #ef4444;
-  --accent-3: #f97316;
-  --success: #22c55e;
-  --link: #ea580c;
-  --code-bg: #1c1917;
-  --code-border: rgba(245, 158, 11, 0.2);
-  --glow: 0 0 30px rgba(245, 158, 11, 0.15);
-  --gradient: linear-gradient(135deg, #f59e0b, #ef4444);
-  --hero-bg: radial-gradient(circle at 50% 0%, rgba(249, 115, 22, 0.12), transparent 50%);
-  --card-shadow: 0 4px 20px rgba(245, 158, 11, 0.08);
-  --card-shadow-hover: 0 8px 30px rgba(245, 158, 11, 0.15);
-  --terminal-bg: #292524;
-  --terminal-header: #1c1917;
-  --nav-bg: rgba(254, 251, 246, 0.85);
+  --text: #f0f0f5;
+  --text-soft: #8888a0;
+  --accent: #FF6900;
+  --accent-2: #FF8A00;
+  --accent-3: #FFAA33;
+  --success: #00d4aa;
+  --link: #FF8A00;
+  --code-bg: #0d0d14;
+  --code-border: rgba(255, 105, 0, 0.2);
+  --glow: 0 0 30px rgba(255, 105, 0, 0.15);
+  --gradient: linear-gradient(135deg, #FF6900, #FF8A00);
+  --hero-bg: radial-gradient(circle at 50% 0%, rgba(255, 105, 0, 0.12), transparent 50%);
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 8px 30px rgba(255, 105, 0, 0.15);
+  --terminal-bg: #0d0d14;
+  --terminal-header: #1a1a25;
+  --nav-bg: rgba(10, 10, 15, 0.85);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -112,7 +51,6 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   min-height: 100vh;
-  transition: background 0.4s ease, color 0.4s ease;
 }
 
 body::before {
@@ -122,28 +60,6 @@ body::before {
   background: var(--hero-bg);
   pointer-events: none;
   z-index: -2;
-  transition: background 0.4s ease;
-}
-
-/* 赛博朋克扫描线效果 */
-:root[data-theme="b"] body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 255, 65, 0.03) 2px,
-    rgba(0, 255, 65, 0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 1000;
-  animation: scanlines 8s linear infinite;
-}
-@keyframes scanlines {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(4px); }
 }
 
 a { color: var(--link); text-decoration: none; transition: color 0.2s; }
@@ -206,7 +122,6 @@ nav {
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-soft);
   padding: 18px 0;
-  transition: background 0.4s ease;
 }
 nav .container { display: flex; justify-content: space-between; align-items: center; }
 .logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.15em; }
@@ -225,36 +140,6 @@ nav .container { display: flex; justify-content: space-between; align-items: cen
 .nav-links { display: flex; gap: 28px; align-items: center; }
 .nav-links a { color: var(--text-soft); font-size: 0.92em; position: relative; }
 .nav-links a:hover { color: var(--text); }
-
-/* 主题切换器 */
-.theme-switcher {
-  display: flex;
-  gap: 8px;
-  background: var(--card);
-  padding: 4px;
-  border-radius: 100px;
-  border: 1px solid var(--border-soft);
-}
-.theme-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-}
-.theme-btn:hover { transform: scale(1.1); }
-.theme-btn.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent);
-}
-.theme-btn[data-theme="a"] { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-.theme-btn[data-theme="b"] { background: linear-gradient(135deg, #00ff41, #00d4ff); }
-.theme-btn[data-theme="c"] { background: linear-gradient(135deg, #f59e0b, #ef4444); }
 
 /* Hero 区域 */
 .hero {
@@ -381,12 +266,6 @@ section:nth-child(even) { background: var(--bg-1); }
   box-shadow: var(--card-shadow);
   backdrop-filter: blur(10px);
 }
-:root[data-theme="c"] .feature {
-  background: rgba(255, 255, 255, 0.7);
-}
-:root[data-theme="b"] .feature {
-  background: rgba(0, 0, 0, 0.3);
-}
 .feature:hover {
   border-color: var(--accent);
   transform: translateY(-4px);
@@ -425,9 +304,7 @@ section:nth-child(even) { background: var(--bg-1); }
 .compare-table td:first-child { text-align: left; font-weight: 500; }
 .compare-table .yes { color: var(--success); font-weight: 600; }
 .compare-table .no { color: var(--text-soft); opacity: 0.6; }
-.compare-table .highlight { background: rgba(99, 102, 241, 0.05); }
-:root[data-theme="b"] .compare-table .highlight { background: rgba(0, 255, 65, 0.05); }
-:root[data-theme="c"] .compare-table .highlight { background: rgba(245, 158, 11, 0.05); }
+.compare-table .highlight { background: rgba(255, 105, 0, 0.05); }
 
 /* API Key 下拉菜单 */
 .api-dropdown {
@@ -453,10 +330,10 @@ section:nth-child(even) { background: var(--bg-1); }
   top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%) translateY(-10px);
-  background: var(--card);
+  background: var(--card-solid);
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: var(--card-shadow-hover), 0 8px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--card-shadow-hover), 0 8px 30px rgba(0, 0, 0, 0.4);
   min-width: 280px;
   padding: 6px;
   opacity: 0;
@@ -494,7 +371,7 @@ section:nth-child(even) { background: var(--bg-1); }
   border-radius: 100px;
   font-weight: 500;
 }
-.api-menu a:nth-child(1) .api-tag { background: #f59e0b; }
+.api-menu a:nth-child(1) .api-tag { background: #FF6900; }
 .api-menu a:nth-child(2) .api-tag { background: #10b981; }
 .api-menu a:nth-child(3) .api-tag { background: #6366f1; }
 .api-menu a:nth-child(4) .api-tag { background: #10b981; }
@@ -651,27 +528,6 @@ footer a:hover { color: var(--accent); }
   margin-bottom: 8px;
 }
 
-/* 赛博主题额外效果 */
-:root[data-theme="b"] .logo-icon {
-  text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
-  animation: neon-flicker 3s infinite;
-}
-@keyframes neon-flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
-    text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent), 0 0 30px var(--accent);
-  }
-  20%, 24%, 55% {
-    text-shadow: none;
-  }
-}
-:root[data-theme="b"] .btn-primary {
-  animation: glow-pulse 2s infinite;
-}
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 65, 0.4); }
-  50% { box-shadow: 0 0 40px rgba(0, 255, 65, 0.6); }
-}
-
 /* 响应式 */
 @media (max-width: 780px) {
   h1 { font-size: 3em; }
@@ -682,11 +538,10 @@ footer a:hover { color: var(--accent); }
   .hero { padding: 70px 0 50px; }
   .feature { padding: 22px; }
   .value-item { width: 100%; }
-  .theme-switcher { display: none; }
 }
 </style>
 </head>
-<body data-theme="c">
+<body>
 
 <nav>
   <div class="container">
@@ -701,20 +556,15 @@ footer a:hover { color: var(--accent); }
       <a href="#install">安装</a>
       <a href="#demo">演示</a>
       <a href="https://github.com/xiaobaotalks/mi-cc">GitHub →</a>
-      <div class="theme-switcher">
-        <button class="theme-btn active" data-theme="a" title="风格 A: 极简蓝紫">A</button>
-        <button class="theme-btn" data-theme="b" title="风格 B: 赛博霓虹">B</button>
-        <button class="theme-btn" data-theme="c" title="风格 C: 暖调毛玻璃">C</button>
-      </div>
     </div>
   </div>
 </nav>
 
 <header class="hero">
   <div class="container">
-    <div class="badge"><span class="dot"></span>v2.0.0 · MIT License · 国产模型优先</div>
+    <div class="badge"><span class="dot"></span>v2.1.0 · 包催催个人定制 · 国产模型优先</div>
     <h1>mi-cc</h1>
-    <p class="tagline">自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手。<br />本地终端体验 + MCP Server 模式，让 OpenClaw/Cursor/Claude 获得专属编程能力。</p>
+    <p class="tagline">包催催个人定制 · 自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手。<br />本地终端体验 + MCP Server 模式，让 OpenClaw/Cursor/Claude 获得专属编程能力。</p>
 
     <div class="features-inline">
       <span class="feature-pill">🧠 四层记忆</span>
@@ -770,7 +620,7 @@ footer a:hover { color: var(--accent); }
 <section id="features">
   <div class="container">
     <h2>核心特性</h2>
-    <p class="section-sub">8 大核心能力，为开发者量身打造</p>
+    <p class="section-sub">11 大核心能力，为开发者量身打造</p>
     <div class="features">
       <div class="feature">
         <div class="feature-icon">🧠</div>
@@ -811,6 +661,21 @@ footer a:hover { color: var(--accent); }
         <div class="feature-icon">🌐</div>
         <h3>MCP Server 模式</h3>
         <p>通过 --mcp 参数启动，暴露完整 Agent 能力给 OpenClaw、Cursor、Claude，开箱即用。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🚀</div>
+        <h3>首次运行引导</h3>
+        <p>API Key 缺失时自动检测，/connect 交互式配置向导，也支持 /connect &lt;你的API Key&gt; 直接指定。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🪟</div>
+        <h3>Windows 兼容</h3>
+        <p>白名单支持 copy / powershell / Get-ChildItem 等 Windows 命令，跨平台开箱即用。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <h3>压缩尾标</h3>
+        <p>对话末尾显示 [ctx: 12% | 未压缩]，上下文占用与压缩状态一目了然。</p>
       </div>
     </div>
   </div>
@@ -888,7 +753,7 @@ footer a:hover { color: var(--accent); }
   </div>
 </section>
 
-<section id="integrate" style="background: linear-gradient(180deg, var(--bg-1), rgba(99, 102, 241, 0.03), var(--bg-0));">
+<section id="integrate" style="background: linear-gradient(180deg, var(--bg-1), rgba(255, 105, 0, 0.03), var(--bg-0));">
   <div class="container">
     <h2>接入 OpenClaw / Hermes</h2>
     <p class="section-sub">两种方式，让 AI 助手调用 mi-cc 的全部能力</p>
@@ -1033,9 +898,11 @@ npm install</code><button class="copy-btn" onclick="copyCode(this)">复制</butt
       </div>
 
       <div class="step">
-        <h3><span class="step-num">2</span>配置 API（默认对接小米 MiMo）</h3>
-        <pre><code>cp .env.example .env
-# 编辑 .env，填入 API_KEY，MODEL 默认 mimo-v2.5-pro</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
+        <h3><span class="step-num">2</span>配置 API（首次运行自动检测）</h3>
+        <pre><code># 首次运行自动检测 API Key，输入 /connect 即可配置
+# 支持交互式向导：/connect
+# 或直接指定：/connect &lt;你的API Key&gt;
+# 默认对接小米 MiMo，也支持 OpenAI / DeepSeek / GLM 等</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>
       </div>
 
       <div class="step">
@@ -1059,10 +926,13 @@ mi-cc --mcp            # 以 MCP Server 模式运行</code><button class="copy-b
         <span class="terminal-dot red"></span>
         <span class="terminal-dot yellow"></span>
         <span class="terminal-dot green"></span>
-        <span class="terminal-title">mi-cc v2.0.0 — mimo-v2.5-pro</span>
+        <span class="terminal-title">mi-cc v2.1.0 — mimo-v2.5-pro</span>
       </div>
       <div class="terminal-body">
         <div class="terminal-line terminal-border-top">
+          <span class="terminal-warning">[检测]</span> 未发现 API Key — 输入 /connect 进行配置（或 /connect &lt;你的API Key&gt;）
+        </div>
+        <div class="terminal-line">
           <span class="terminal-info">[配置]</span> 模型 mimo-v2.5-pro · 自动设置 maxTokens=1000000
         </div>
         <div class="terminal-line">
@@ -1086,6 +956,9 @@ mi-cc --mcp            # 以 MCP Server 模式运行</code><button class="copy-b
         <div class="terminal-line">
           <span class="terminal-success">✓</span> runShell("npm run build") · 耗时 3820ms
         </div>
+        <div class="terminal-line">
+          <span class="terminal-output">[ctx: 15% | 未压缩]</span>
+        </div>
         <div class="terminal-line terminal-border-top">
           <span class="terminal-info">[任务]</span> ✅ Todo 应用创建完成！
         </div>
@@ -1097,6 +970,7 @@ mi-cc --mcp            # 以 MCP Server 模式运行</code><button class="copy-b
 <footer>
   <div class="container">
     <div class="footer-logo">mi-cc</div>
+    <p>mi-cc · 包催催个人定制</p>
     <p>自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手</p>
     <div class="social">
       <a href="https://github.com/xiaobaotalks/mi-cc">GitHub 仓库</a>
@@ -1130,26 +1004,6 @@ mi-cc --mcp            # 以 MCP Server 模式运行</code><button class="copy-b
     if (e.key === 'Escape') {
       document.querySelectorAll('.api-dropdown.open').forEach(d => d.classList.remove('open'));
     }
-  });
-
-  // 主题切换
-  function setTheme(theme) {
-    document.body.setAttribute('data-theme', theme);
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('mi-cc-theme', theme);
-    
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.theme === theme);
-    });
-  }
-
-  // 初始化主题
-  const savedTheme = localStorage.getItem('mi-cc-theme') || 'c';
-  setTheme(savedTheme);
-
-  // 绑定切换按钮
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.addEventListener('click', () => setTheme(btn.dataset.theme));
   });
 
   // 复制代码
