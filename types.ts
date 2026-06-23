@@ -2,10 +2,17 @@
 
 import type OpenAI from 'openai';
 
+export type MessageContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    >;
+
 /** LLM 消息 */
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
+  content: MessageContent;
   /** OpenAI Function Calling 工具调用（仅助手消息可能有） */
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessage['tool_calls'];
   /** 函数调用结果的 ID（仅 role:'tool' 消息需要） */
