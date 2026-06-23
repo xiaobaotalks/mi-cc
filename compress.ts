@@ -221,7 +221,7 @@ ${blocks.map(b => {
 
   try {
     const response = await callLLM([{ role: 'user', content: prompt }]);
-    return response.content?.trim() || '摘要生成失败';
+    return contentToString(response.content).trim() || '摘要生成失败';
   } catch (error) {
     return `摘要生成错误: ${(error as Error).message}`;
   }

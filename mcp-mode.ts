@@ -36,7 +36,7 @@ import {
   CHECKPOINT_FILE,
 } from './memory';
 import { matchSkill, formatSkillForPrompt } from './skills';
-import type { Tool, Config } from './types';
+import type { Tool, Config, Message } from './types';
 import OpenAI from 'openai';
 import { appState } from './src/state';
 import { loadConfig } from './src/config';
