@@ -99,64 +99,23 @@ const PRESET_PROVIDERS = [
  * 如果不可用则回退到 .env 明文存储
  */
 async function safeStoreApiKey(service: string, account: string, key: string): Promise<boolean> {
-  // 方案一: 使用 safeStorage (Electron/Node.js 内置)
-  try {
-    const { safeStorage } = require('electron');
-    if (safeStorage.isEncryptionAvailable()) {
-      const encrypted = safeStorage.encryptString(key);
-      const keytarPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.mi-cc', 'secrets.json');
-      // 存储加密后的内容到文件（不是明文）
-      const dir = path.dirname(keytarPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const existing = fs.existsSync(keytarPath) ? JSON.parse(fs.readFileSync(keytarPath, 'utf-8')) : {};
-      existing[`${service}:${account}`] = encrypted.toString('base64');
-      fs.writeFileSync(keytarPath, JSON.stringify(existing), 'utf-8');
-      return true;
-    }
-  } catch {
-    // safeStorage 不可用，尝试 keytar
-  }
-
-  // 方案二: 使用 keytar（npm 包）
   try {
     const keytar = await import('keytar');
     await keytar.setPassword(service, account, key);
     return true;
   } catch {
     // keytar 不可用
+    return false;
   }
-
-  return false;
 }
 
 async function safeGetApiKey(service: string, account: string): Promise<string | null> {
-  // 方案一: safeStorage
-  try {
-    const { safeStorage } = require('electron');
-    if (safeStorage.isEncryptionAvailable()) {
-      const keytarPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.mi-cc', 'secrets.json');
-      if (fs.existsSync(keytarPath)) {
-        const existing = JSON.parse(fs.readFileSync(keytarPath, 'utf-8'));
-        const encrypted = existing[`${service}:${account}`];
-        if (encrypted) {
-          const buffer = Buffer.from(encrypted, 'base64');
-          return safeStorage.decryptString(buffer);
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 方案二: keytar
   try {
     const keytar = await import('keytar');
     return await keytar.getPassword(service, account);
   } catch {
-    // ignore
+    return null;
   }
-
-  return null;
 }
 
 /** 创建交互式输入 */

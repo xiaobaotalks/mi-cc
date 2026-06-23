@@ -96,8 +96,8 @@ export function loadCompressState(sessionId?: string): CompressState {
       const data = fs.readFileSync(file, 'utf-8');
       return JSON.parse(data);
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn(`[compress] 加载压缩状态失败: ${(e as Error).message}`);
   }
   return { summaries: [] };
 }
@@ -107,8 +107,8 @@ export function saveCompressState(state: CompressState, sessionId?: string): voi
   const file = getCompressStateFile(sessionId);
   try {
     fs.writeFileSync(file, JSON.stringify(state, null, 2), 'utf-8');
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn(`[compress] 保存压缩状态失败: ${(e as Error).message}`);
   }
 }
 

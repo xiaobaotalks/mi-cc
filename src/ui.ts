@@ -6,6 +6,24 @@
 
 import chalk from 'chalk';
 
+// ========== 上下文尾标渲染 ==========
+
+export interface CompactInfo {
+  tokenCount: number;
+  maxTokens: number;
+  compressed: boolean;
+  tier: string;
+}
+
+/** 渲染上下文尾标：百分比 + 是否压缩 */
+export function renderContextBar(info: CompactInfo): string {
+  const pct = Math.round((info.tokenCount / info.maxTokens) * 100);
+  const compressTag = info.compressed
+    ? chalk.yellow(`已压缩(${info.tier})`)
+    : chalk.gray('未压缩');
+  return chalk.gray(`[ctx: ${pct}% | ${compressTag}${chalk.gray(']')}`);
+}
+
 // ========== 工具调用结果渲染 ==========
 
 export function renderToolResult(name: string, args: object, result: string, ms: number): void {
@@ -33,10 +51,13 @@ ${border} ${header} ${timeStr}`);
 
 // ========== 助手回复渲染 ==========
 
-export function renderAssistant(content: string): void {
+export function renderAssistant(content: string, compactInfo?: CompactInfo): void {
   console.log(`\n${chalk.blue('💬')} ${chalk.bold('助手')}`);
   console.log(chalk.gray('─'.repeat(50)));
   console.log(content);
+  if (compactInfo) {
+    console.log(renderContextBar(compactInfo));
+  }
   console.log();
 }
 

@@ -45,16 +45,32 @@ export function classifyLLMError(error: unknown): 'auth' | 'rate_limit' | 'serve
 
 // ==================== LLM 调用 ====================
 
-/** 带超时的 LLM 调用 */
+/** 带超时的 LLM 调用（优先使用 ProviderRouter 故障转移） */
 export async function callLLMWithTimeout(messages: Message[]): Promise<Message> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
   try {
+    const tools = toolsToOpenAIFormat(appState.get('tools'));
+
+    // 优先使用 ProviderRouter（支持多 Provider 故障转移）
+    const router = appState.router;
+    if (router) {
+      const response = await router.chat({
+        messages: messages as unknown as any[],
+        tools,
+        toolChoice: 'auto',
+        maxTokens: appState.get('config').maxTokens,
+        signal: controller.signal,
+      });
+      return response.message;
+    }
+
+    // 回退：直接使用 appState 中的 OpenAI 客户端
     const response = await appState.get('openai').chat.completions.create({
       model: appState.get('config').model,
       messages: messages as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      tools: toolsToOpenAIFormat(appState.get('tools')),
+      tools,
       tool_choice: 'auto',
       max_tokens: appState.get('config').maxTokens,
     }, { signal: controller.signal as any });
@@ -178,16 +194,18 @@ export function getMemoryMTime(): number {
 
 export function buildSystemPrompt(currentUserInput?: string): string {
   const mtime = getMemoryMTime();
-  if (systemPromptCache && systemPromptCache.mtime === mtime && !currentUserInput) {
-    return systemPromptCache.prompt;
-  }
 
-  const memory = readMemory();
-  const notes = readNotes();
-  const checkpoint = readCheckpoint(appState.get('currentSessionId'));
-  const skillLib = fs.existsSync(SKILL_LIB_FILE) ? fs.readFileSync(SKILL_LIB_FILE, 'utf-8') : '';
+  // 基础 prompt 走缓存（文件未修改时直接复用）
+  let basePrompt: string;
+  if (systemPromptCache && systemPromptCache.mtime === mtime) {
+    basePrompt = systemPromptCache.prompt;
+  } else {
+    const memory = readMemory();
+    const notes = readNotes();
+    const checkpoint = readCheckpoint(appState.get('currentSessionId'));
+    const skillLib = fs.existsSync(SKILL_LIB_FILE) ? fs.readFileSync(SKILL_LIB_FILE, 'utf-8') : '';
 
-  let systemPrompt = `你是一个智能编程助手 mi-cc。
+    basePrompt = `你是一个智能编程助手 mi-cc。
 
 ## 当前会话
 - Session ID: ${appState.get('currentSessionId')}
@@ -203,45 +221,54 @@ ${appState.get('tools').map(t => `- ${t.name}: ${t.description}${t.source === 'm
 4. 优先复用技能库中已有的工作流
 `;
 
-  if (memory) {
-    systemPrompt += `\n## 项目记忆\n${memory}\n`;
-  }
+    if (memory) {
+      basePrompt += `\n## 项目记忆\n${memory}\n`;
+    }
 
-  if (notes) {
-    systemPrompt += `\n## 笔记\n${notes}\n`;
-  }
+    if (notes) {
+      basePrompt += `\n## 笔记\n${notes}\n`;
+    }
 
-  if (checkpoint) {
-    systemPrompt += `\n## 上次会话状态
+    if (checkpoint) {
+      basePrompt += `\n## 上次会话状态
 - 任务: ${checkpoint.task}
 - 当前文件: ${checkpoint.currentFile}
 - 最后操作: ${checkpoint.lastAction}
 `;
+    }
+
+    if (skillLib) {
+      basePrompt += `\n## 技能库（完整）\n${skillLib}\n`;
+    }
+
+    systemPromptCache = { mtime, prompt: basePrompt };
   }
 
-  if (skillLib) {
-    systemPrompt += `\n## 技能库（完整）\n${skillLib}\n`;
-  }
-
+  // 技能匹配是动态的，不缓存
   if (currentUserInput) {
     const matched = matchSkill(currentUserInput);
     const text = formatSkillForPrompt(matched);
     if (text) {
-      systemPrompt += `\n## 当前输入最相关的技能（请优先复用）\n${text}\n`;
-      return systemPrompt;
+      return basePrompt + `\n## 当前输入最相关的技能（请优先复用）\n${text}\n`;
     }
   }
 
-  systemPromptCache = { mtime, prompt: systemPrompt };
-  return systemPrompt;
+  return basePrompt;
 }
 
 // ==================== 上下文压缩 ====================
 
-export async function compactContext(): Promise<void> {
+/** 压缩结果信息 */
+export interface CompactResult {
+  tokenCount: number;
+  maxTokens: number;
+  compressed: boolean;
+  tier: string;
+}
+
+export async function compactContext(): Promise<CompactResult> {
   const totalTokens = estimateTotalTokens(appState.get('conversationHistory'));
   const maxTokens = appState.get('config').maxTokens;
-  const ratio = totalTokens / maxTokens;
 
   // 1. 滚动窗口检查（轻量，优先执行）
   if (checkRollingWindow()) {
@@ -258,14 +285,12 @@ export async function compactContext(): Promise<void> {
   );
 
   if (!result.changed) {
-    if (result.tier === 'none') {
-      console.log(`[压缩] 当前 token ${totalTokens}，无需压缩`);
-    }
-    return;
+    return { tokenCount: totalTokens, maxTokens, compressed: false, tier: result.tier };
   }
 
   appState.set('conversationHistory', result.messages);
   saveStateFromMessages(appState.get('conversationHistory'), appState.get('currentSessionId'));
-  console.log(`[压缩] 完成 (${result.tier})，当前 token ${estimateTotalTokens(appState.get('conversationHistory'))}`);
-  appendNote(`上下文压缩完成（${result.tier}），剩余 token: ${estimateTotalTokens(appState.get('conversationHistory'))}`);
+  const afterTokens = estimateTotalTokens(appState.get('conversationHistory'));
+  appendNote(`上下文压缩完成（${result.tier}），剩余 token: ${afterTokens}`);
+  return { tokenCount: afterTokens, maxTokens, compressed: true, tier: result.tier };
 }

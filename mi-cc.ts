@@ -6,6 +6,7 @@
  */
 
 import { Command } from 'commander';
+import OpenAI from 'openai';
 import {
   loadCompressState,
 } from './compress';
@@ -64,7 +65,7 @@ const BANNER = chalk.cyan(`
 ║  ╚═╝     ╚═╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ║
 ╠══════════════════════════════════════════════════════╣
 ║  ▓▒░  ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  ░▒▓  ║
-║  ▓▒░  ┃ ✦  【 为 发 烧 而 生 】  ✦  mi-cc  ┃  ░▒▓  ║
+║  ▓▒░  ┃  mi-cc · 包催催个人定制 · v2.1.0     ┃  ░▒▓  ║
 ║  ▓▒░  ┃    智能编程助手 · LLM Agent Shell    ┃  ░▒▓  ║
 ║  ▓▒░  ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  ░▒▓  ║
 ╚══════════════════════════════════════════════════════╝
@@ -73,8 +74,6 @@ const BANNER = chalk.cyan(`
 // ==================== 初始化 ====================
 
 function initOpenAI(cfg: { apiKey: string; baseUrl: string }) {
-  // 延迟导入避免循环依赖
-  const OpenAI = require('openai').default;
   return new OpenAI({
     apiKey: cfg.apiKey,
     baseURL: cfg.baseUrl,
@@ -88,7 +87,7 @@ async function main() {
   program
     .name('mi-cc')
     .description('mi-cc - 智能编程助手 (MCP Server / CLI)')
-    .version('1.1.0')
+    .version('2.1.0')
     .option('-s, --session <id>', '指定会话 ID')
     .option('--mcp', '以 MCP Server 模式启动（StdioServerTransport）')
     .parse(process.argv);
@@ -106,6 +105,19 @@ async function main() {
 
   const { config, warnings } = loadConfig();
   for (const w of warnings) console.log(`[警告] ${w}`);
+
+  // 首次运行检测：API Key 缺失或为占位符时引导配置
+  if (!config.apiKey || config.apiKey === 'your_api_key_here') {
+    console.log('┌──────────────────────────────────────────────────────────┐');
+    console.log('│  ⚠  尚未配置 API Key                                    │');
+    console.log('│                                                          │');
+    console.log('│  请输入 /connect 启动配置向导，或直接输入：              │');
+    console.log('│    /connect <你的API Key>                                │');
+    console.log('│                                                          │');
+    console.log('│  默认使用小米 MiMo 模型，也支持 OpenAI / Claude / GLM    │');
+    console.log('└──────────────────────────────────────────────────────────┘\n');
+  }
+
   let openai = initOpenAI(config);
   let historyData = initHistory();
   let tools = createBuiltinTools();
@@ -122,7 +134,7 @@ async function main() {
   // 启动时自动加载上次激活的 Provider（覆盖 .env 中的配置）
   try {
     const providers = loadProviders();
-    const active = providers.find((p: any) => p.active);
+    const active = providers.find(p => p.active);
     if (active) {
       config.apiKey = active.apiKey;
       config.baseUrl = active.baseUrl;
@@ -188,14 +200,18 @@ async function main() {
 
   if (allProviders.length > 1) {
     router = new ProviderRouter(allProviders);
+    appState.router = router;
     console.log(`[Provider] 已加载 ${allProviders.length} 个 Provider`);
   }
 
-  // 构建斜杠命令上下文（直接引用 appState）
+  // 构建斜杠命令上下文（直接引用 appState，消除双重状态）
   slashCtx = {
-    openai: appState.get('openai'),
-    config: appState.get('config'),
-    tools: appState.get('tools'),
+    get openai() { return appState.get('openai'); },
+    set openai(v) { appState.set('openai', v); },
+    get config() { return appState.get('config'); },
+    set config(v) { appState.set('config', v); },
+    get tools() { return appState.get('tools'); },
+    set tools(v) { appState.set('tools', v); },
   };
 
   // 恢复压缩摘要层

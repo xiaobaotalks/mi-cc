@@ -23,11 +23,12 @@ export const DANGEROUS_PATTERNS = [
   /^\s*dd\s+if=/i,
   /^\s*shutdown\b/i,
   /^\s*reboot\b/i,
-  /^\s*:(){ :\|:& };:/i,
+  /^\s*:\(\)\s*\{\s*:\|:&\s*\};:/,
 ] as const;
 
 /** Shell 命令白名单（默认允许的常见开发命令） */
 export const SHELL_WHITELIST = new Set([
+  // 通用 Unix 命令
   'ls', 'cat', 'head', 'tail', 'grep', 'find', 'awk', 'sed', 'wc', 'sort', 'uniq', 'diff',
   'npm', 'npx', 'yarn', 'pnpm', 'node',
   'git', 'tsc', 'eslint', 'prettier', 'tsx', 'vite',
@@ -38,36 +39,47 @@ export const SHELL_WHITELIST = new Set([
   'echo', 'pwd', 'which', 'whoami', 'date', 'env', 'export',
   'tar', 'zip', 'unzip', 'chmod', 'chown',
   'jq', 'yq',
+  // Windows 兼容命令
+  'dir', 'type', 'copy', 'move', 'del', 'ren', 'md',
+  'powershell', 'pwsh', 'cmd', 'where', 'cls',
+  'Get-ChildItem', 'Get-Content', 'Set-Location', 'Copy-Item', 'Move-Item', 'New-Item',
 ]);
 
 /** 管道到 shell 的黑名单（禁止 curl|bash 等） */
 const PIPE_TO_SHELL_PATTERN = /^\s*(curl|wget)[^|]*\|\s*(bash|sh|zsh|fish|ksh)\b/i;
 
-/** 检查命令是否被允许执行 */
+/** 检查命令是否被允许执行（支持管道和链接符，每个子命令都需通过白名单） */
 export function isCommandAllowed(command: string): { allowed: boolean; reason?: string } {
-  // 提取命令的第一个单词（去掉路径前缀）
   const trimmed = command.trim();
-  const firstWord = trimmed.split(/\s+/)[0];
-  const baseName = firstWord.split('/').pop() || '';
 
   // 1. 检查管道到 shell 的黑名单
   if (PIPE_TO_SHELL_PATTERN.test(trimmed)) {
     return { allowed: false, reason: '禁止管道到 shell 解释器执行' };
   }
 
-  // 2. 检查黑名单
+  // 2. 检查黑名单（对完整命令和每个子命令都检查）
   const danger = isDangerousCommand(trimmed);
   if (danger) {
     return { allowed: false, reason: `匹配危险命令模式: ${danger}` };
   }
 
-  // 3. 检查白名单
-  if (SHELL_WHITELIST.has(baseName)) {
-    return { allowed: true };
+  // 3. 按链接符拆分为子命令，每个子命令都需通过白名单和危险检查
+  // 支持 ; && || | 等常见 shell 链接符
+  const subCommands = trimmed.split(/\s*(?:;|&&|\|\||\|)\s*/).filter(s => s.length > 0);
+  for (const sub of subCommands) {
+    // 子命令级别的危险检查
+    const subDanger = isDangerousCommand(sub);
+    if (subDanger) {
+      return { allowed: false, reason: `匹配危险命令模式: ${subDanger}` };
+    }
+    const firstWord = sub.split(/\s+/)[0];
+    const baseName = firstWord.split('/').pop() || '';
+    if (!SHELL_WHITELIST.has(baseName)) {
+      return { allowed: false, reason: `命令 "${baseName}" 不在白名单中，如需执行请在终端直接运行` };
+    }
   }
 
-  // 4. 不在白名单也不在黑名单 → 拒绝（安全优先）
-  return { allowed: false, reason: `命令 "${baseName}" 不在白名单中，如需执行请在终端直接运行` };
+  return { allowed: true };
 }
 
 /** 规范化文件路径并检查是否在项目目录内 */
@@ -81,12 +93,21 @@ export function normalizeFilePath(inputPath: string): string {
 }
 
 const AUDIT_LOG_FILE = 'audit.log';
+/** 审计日志最大大小（1MB），超过后自动轮转 */
+const AUDIT_LOG_MAX_SIZE = 1024 * 1024;
 
 function writeAuditLog(toolName: string, detail: string, success: boolean): void {
   const timestamp = new Date().toISOString();
   const status = success ? '✓' : '✗';
   const line = `[${timestamp}] [${toolName}] ${status} ${detail}\n`;
   try {
+    // 日志轮转：超过大小限制时重命名为 .old 并重新创建
+    if (fs.existsSync(AUDIT_LOG_FILE)) {
+      const stat = fs.statSync(AUDIT_LOG_FILE);
+      if (stat.size > AUDIT_LOG_MAX_SIZE) {
+        fs.renameSync(AUDIT_LOG_FILE, `${AUDIT_LOG_FILE}.old`);
+      }
+    }
     fs.appendFileSync(AUDIT_LOG_FILE, line, 'utf-8');
   } catch {
     // ignore

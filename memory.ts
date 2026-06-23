@@ -56,8 +56,8 @@ export function loadSessionIndex(): SessionEntry[] {
     if (fs.existsSync(SESSION_INDEX)) {
       return JSON.parse(fs.readFileSync(SESSION_INDEX, 'utf-8'));
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn(`[memory] 加载会话索引失败: ${(e as Error).message}`);
   }
   return [];
 }
@@ -167,7 +167,8 @@ export function readCheckpoint(sessionId?: string): Checkpoint | null {
       stage: checkpoint.stage || '',
       time: checkpoint.time || '',
     };
-  } catch {
+  } catch (e) {
+    console.warn(`[memory] 读取 checkpoint 失败: ${(e as Error).message}`);
     return null;
   }
 }
@@ -210,7 +211,8 @@ export function readMemory(): string {
       return defaultContent;
     }
     return fs.readFileSync(MEMORY_FILE, 'utf-8');
-  } catch {
+  } catch (e) {
+    console.warn(`[memory] 读取项目记忆失败: ${(e as Error).message}`);
     return '';
   }
 }
@@ -236,7 +238,8 @@ export function readNotes(): string {
   try {
     if (!fs.existsSync(NOTES_FILE)) return '';
     return fs.readFileSync(NOTES_FILE, 'utf-8');
-  } catch {
+  } catch (e) {
+    console.warn(`[memory] 读取笔记失败: ${(e as Error).message}`);
     return '';
   }
 }
@@ -257,8 +260,8 @@ export function initHistory(sessionId?: string): HistoryRecord[] {
       const data = fs.readFileSync(file, 'utf-8');
       return JSON.parse(data);
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn(`[memory] 加载历史记录失败: ${(e as Error).message}`);
   }
   return [];
 }
@@ -343,7 +346,8 @@ export function readTaskCheckpoint(sessionId?: string): TaskCheckpoint | null {
   try {
     if (!fs.existsSync(file)) return null;
     return JSON.parse(fs.readFileSync(file, 'utf-8'));
-  } catch {
+  } catch (e) {
+    console.warn(`[memory] 读取任务 checkpoint 失败: ${(e as Error).message}`);
     return null;
   }
 }

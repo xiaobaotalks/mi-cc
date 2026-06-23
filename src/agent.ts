@@ -24,10 +24,12 @@ import OpenAI from 'openai';
 import type { Message } from '../types';
 
 import { callLLM, buildSystemPrompt, compactContext } from './llm-core';
+import type { CompactResult } from './llm-core';
 import {
   renderToolResult,
   renderAssistant,
   renderWarning,
+  renderContextBar,
 } from './ui';
 
 // ==================== 常量 ====================
@@ -128,7 +130,7 @@ export async function runAgent(userInput: string): Promise<void> {
   appState.get('conversationHistory').push({ role: 'user', content: userInput });
   appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'user', userInput));
 
-  await compactContext();
+  const compactResult = await compactContext();
 
   const messages: Message[] = [
     { role: 'system', content: buildSystemPrompt(userInput) },
@@ -143,7 +145,7 @@ export async function runAgent(userInput: string): Promise<void> {
     appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'assistant', response.content || JSON.stringify(response)));
 
     if (response.content) {
-      renderAssistant(response.content);
+      renderAssistant(response.content, compactResult);
     }
 
     const toolCalls = (response as OpenAI.Chat.Completions.ChatCompletionMessage).tool_calls;

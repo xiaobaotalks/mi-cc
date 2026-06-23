@@ -39,54 +39,35 @@ import { matchSkill, formatSkillForPrompt } from './skills';
 import type { Tool, Config } from './types';
 import OpenAI from 'openai';
 import { appState } from './src/state';
-
-// ==================== 初始化（复用 mi-cc 的配置逻辑） ====================
-
-function initConfig(): Config {
-  // 复用 mi-cc 的配置逻辑（不直接 import 避免循环）
-  const dotenv = require('dotenv');
-  dotenv.config({ path: '.env' });
-  const model = process.env.MODEL || 'gpt-4o-mini';
-  const maxTokens = process.env.MAX_TOKEN ? parseInt(process.env.MAX_TOKEN, 10) : 8000;
-  return {
-    apiKey: process.env.API_KEY || '',
-    baseUrl: process.env.BASE_URL || 'https://api.openai.com/v1',
-    model,
-    maxTokens,
-  };
-}
-
-function initOpenAI(cfg: Config): OpenAI {
-  return new OpenAI({
-    apiKey: cfg.apiKey,
-    baseURL: cfg.baseUrl,
-  });
-}
+import { loadConfig } from './src/config';
 
 // ==================== MCP Server 主函数 ====================
 
 export async function mcpMode(): Promise<void> {
   // 动态 import MCP SDK（可选依赖，CLI 模式不加载）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let McpServer: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let StdioServerTransport: any;
   try {
     const mcpModule = await import('@modelcontextprotocol/sdk');
-    McpServer = mcpModule.McpServer || (mcpModule as any).default?.McpServer;
-    StdioServerTransport = mcpModule.StdioServerTransport || (mcpModule as any).default?.StdioServerTransport;
+    McpServer = mcpModule.McpServer || mcpModule.default?.McpServer;
+    StdioServerTransport = mcpModule.StdioServerTransport || mcpModule.default?.StdioServerTransport;
   } catch {
     console.error('[MCP] 错误: 未安装 @modelcontextprotocol/sdk，请运行 npm install @modelcontextprotocol/sdk');
     process.exit(1);
   }
 
-  // 初始化
-  const config = initConfig();
-  const openai = initOpenAI(config);
+  // 初始化配置（复用 src/config.ts 的 loadConfig，消除重复逻辑）
+  const { config, warnings } = loadConfig();
+  for (const w of warnings) console.error(`[MCP 警告] ${w}`);
+  const openai = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl });
   const tools: Tool[] = createBuiltinTools();
   initMcpTools(tools, (cmd, timeout) => toolRunShell({ command: cmd, timeout }));
   const sessionId = generateSessionId();
   const historyData = initHistory(sessionId);
 
-  // 初始化 appState
+  // 初始化 appState（统一状态管理，不再维护独立 conversationHistory）
   appState.init({
     openai,
     config,
@@ -96,13 +77,10 @@ export async function mcpMode(): Promise<void> {
     historyData,
   });
 
-  // agentLoop 需要的共享状态（MCP 模式下简化）
-  let conversationHistory: any[] = [];
-
   // 创建 MCP Server
   const server = new McpServer({
     name: 'mi-cc',
-    version: '1.1.0',
+    version: '2.1.0',
   });
 
   // ---------- 工具: agent_execute ----------
@@ -122,15 +100,15 @@ export async function mcpMode(): Promise<void> {
         console.error = (...args: unknown[]) => logs.push('[stderr] ' + args.map(String).join(' '));
 
         // 动态 import agentLoop 相关模块
-        const { buildSystemPrompt, callLLM, compactContext } = await import('./mi-cc') as any;
+        const { buildSystemPrompt, callLLM, compactContext } = await import('./src/llm-core');
 
-        // 构建 system prompt
+        // 构建 system prompt，使用 appState 统一管理对话历史
         const systemPrompt = buildSystemPrompt(input);
-        conversationHistory.push({ role: 'user', content: input });
+        appState.get('conversationHistory').push({ role: 'user', content: input });
 
         const messages = [
           { role: 'system', content: systemPrompt },
-          ...conversationHistory,
+          ...appState.get('conversationHistory'),
         ];
 
         let response = await callLLM(messages);
@@ -138,7 +116,7 @@ export async function mcpMode(): Promise<void> {
         let finalContent = '';
 
         while (true) {
-          conversationHistory.push(response);
+          appState.get('conversationHistory').push(response);
           if (response.content) finalContent += response.content + '\n';
 
           const toolCalls = response.tool_calls;
@@ -151,12 +129,12 @@ export async function mcpMode(): Promise<void> {
             let args: Record<string, unknown>;
             try { args = JSON.parse(tc.function.arguments); } catch { args = {}; }
             const result = await executeToolCall(tools, tc.function.name, args);
-            conversationHistory.push({ role: 'tool', content: result, tool_call_id: tc.id });
+            appState.get('conversationHistory').push({ role: 'tool', content: result, tool_call_id: tc.id });
           }
 
           response = await callLLM([
             { role: 'system', content: buildSystemPrompt() },
-            ...conversationHistory,
+            ...appState.get('conversationHistory'),
           ]);
         }
 

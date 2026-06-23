@@ -9,6 +9,8 @@ import {
   readCheckpoint,
   initHistory,
 } from '../memory';
+import { loadCompressState } from '../compress';
+import type { ProviderRouter } from './router';
 
 // ========== AppState 单例 ==========
 
@@ -25,6 +27,8 @@ class AppState {
   tools!: Tool[];
   historyData: HistoryRecord[] = [];
   maxRawTurns: number = DEFAULT_MAX_RAW_TURNS;
+  /** 多 Provider 故障转移路由器（可选，未配置时为 null） */
+  router: ProviderRouter | null = null;
 
   // 变更订阅
   private _listeners: Map<string, Set<(value: unknown) => void>> = new Map();
@@ -109,14 +113,36 @@ class AppState {
     // 从会话目录加载历史
     this.historyData = initHistory(newSessionId);
 
-    // 从会话目录加载对话历史
+    // 恢复压缩摘要层
+    const compressState = loadCompressState(newSessionId);
+    const summaryMessages: Message[] = compressState.summaries.map(s => ({
+      role: 'system' as const,
+      content: `[历史摘要 L${s.level} @ ${s.createdAt}]\n${s.text}`,
+    }));
+
+    // 从会话目录加载对话历史（history.json 中的原始消息）
+    const historyFile = getSessionFile(newSessionId, 'history.json');
+    const rawMessages: Message[] = [];
+    try {
+      if (fs.existsSync(historyFile)) {
+        const records = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+        for (const r of records) {
+          if (r.role === 'user' || r.role === 'assistant') {
+            rawMessages.push({ role: r.role, content: r.content });
+          }
+        }
+      }
+    } catch {
+      // 历史文件损坏时静默跳过
+    }
+
+    // 合并摘要层 + 原始消息
+    this.conversationHistory = [...summaryMessages, ...rawMessages];
+
     const checkpoint = readCheckpoint(newSessionId);
     if (checkpoint) {
-      this.conversationHistory = [
-        { role: 'system', content: '系统提示' },
-      ];
-    } else {
-      this.conversationHistory = [];
+      console.log(`[会话恢复] ${newSessionId}: ${checkpoint.task}`);
+      console.log(`[会话恢复] 摘要 ${summaryMessages.length} 层, 原始消息 ${rawMessages.length} 条`);
     }
   }
 }

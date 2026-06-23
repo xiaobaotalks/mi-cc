@@ -9,12 +9,16 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+providers.json
 
 # 运行时生成的状态文件
 compress-state.json
 history.json
 checkpoint.md
 notes.md
+audit.log
+task-checkpoint.json
+.mi-cc-index.json
 
 # 本地草稿 / 临时文件
 *.tmp
