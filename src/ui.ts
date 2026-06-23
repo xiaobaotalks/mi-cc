@@ -26,12 +26,36 @@ export function renderContextBar(info: CompactInfo): string {
 
 // ========== 工具调用结果渲染 ==========
 
+/** 折叠过长的字段值，返回摘要字符串 */
+function foldValue(value: string, maxLen = 80): string {
+  if (value.length <= maxLen) return value;
+  const lines = value.split('\n');
+  if (lines.length > 3) {
+    return `${lines.slice(0, 2).join('\n').substring(0, maxLen)}\n... <折叠 ${lines.length - 2} 行，共 ${lines.length} 行 ${value.length} 字符>`;
+  }
+  return `${value.substring(0, maxLen)}... <折叠 ${value.length - maxLen} 字符>`;
+}
+
+/** 格式化工具参数，对 writeFile 等大内容字段做折叠 */
+function formatArgs(name: string, args: object): string {
+  const obj = args as Record<string, unknown>;
+  const folded: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === 'string' && val.length > 80) {
+      folded[key] = foldValue(val);
+    } else {
+      folded[key] = val;
+    }
+  }
+  return JSON.stringify(folded);
+}
+
 export function renderToolResult(name: string, args: object, result: string, ms: number): void {
   const isError = result.startsWith('错误:') || result.startsWith('错误：');
   const border = isError ? chalk.red('│') : chalk.green('│');
   const header = isError ? chalk.red('✗') : chalk.green('✓');
   const toolName = chalk.cyan(name);
-  const argsStr = chalk.gray(JSON.stringify(args));
+  const argsStr = chalk.gray(formatArgs(name, args));
   const timeStr = chalk.gray(`${ms}ms`);
 
   console.log(`

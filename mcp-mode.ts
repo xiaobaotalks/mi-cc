@@ -50,6 +50,7 @@ export async function mcpMode(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let StdioServerTransport: any;
   try {
+    // @ts-ignore - @modelcontextprotocol/sdk 为可选依赖，运行时动态加载
     const mcpModule = await import('@modelcontextprotocol/sdk');
     McpServer = mcpModule.McpServer || mcpModule.default?.McpServer;
     StdioServerTransport = mcpModule.StdioServerTransport || mcpModule.default?.StdioServerTransport;
@@ -80,7 +81,7 @@ export async function mcpMode(): Promise<void> {
   // 创建 MCP Server
   const server = new McpServer({
     name: 'mi-cc',
-    version: '2.2.1',
+    version: '2.3.0',
   });
 
   // ---------- 工具: agent_execute ----------
@@ -91,14 +92,14 @@ export async function mcpMode(): Promise<void> {
       input: { type: 'string', description: '用户输入的任务描述' },
     },
     async ({ input }: { input: string }) => {
-      try {
-        // 劫持 console.log 收集输出
-        const logs: string[] = [];
-        const origLog = console.log;
-        const origError = console.error;
-        console.log = (...args: unknown[]) => logs.push(args.map(String).join(' '));
-        console.error = (...args: unknown[]) => logs.push('[stderr] ' + args.map(String).join(' '));
+      // 劫持 console.log 收集输出
+      const logs: string[] = [];
+      const origLog = console.log;
+      const origError = console.error;
+      console.log = (...args: unknown[]) => logs.push(args.map(String).join(' '));
+      console.error = (...args: unknown[]) => logs.push('[stderr] ' + args.map(String).join(' '));
 
+      try {
         // 动态 import agentLoop 相关模块
         const { buildSystemPrompt, callLLM, compactContext } = await import('./src/llm-core');
 
@@ -106,10 +107,10 @@ export async function mcpMode(): Promise<void> {
         const systemPrompt = buildSystemPrompt(input);
         appState.get('conversationHistory').push({ role: 'user', content: input });
 
-        const messages = [
+        const messages: Message[] = [
           { role: 'system', content: systemPrompt },
           ...appState.get('conversationHistory'),
-        ];
+        ] as Message[];
 
         let response = await callLLM(messages);
         let iterations = 0;
@@ -138,10 +139,6 @@ export async function mcpMode(): Promise<void> {
           ]);
         }
 
-        // 恢复 console
-        console.log = origLog;
-        console.error = origError;
-
         return {
           content: [{ type: 'text' as const, text: finalContent || logs.join('\n') || '(无输出)' }],
         };
@@ -150,6 +147,10 @@ export async function mcpMode(): Promise<void> {
           content: [{ type: 'text' as const, text: `[MCP 错误] agent_execute 失败: ${(error as Error).message}` }],
           isError: true,
         };
+      } finally {
+        // 确保 console 一定恢复
+        console.log = origLog;
+        console.error = origError;
       }
     },
   );

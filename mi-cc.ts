@@ -16,6 +16,7 @@ import type { Message } from './types';
 import {
   createBuiltinTools,
   toolRunShell,
+  loadUserAllowList,
 } from './tools';
 import {
   initMcpTools,
@@ -34,7 +35,7 @@ import {
 } from './memory';
 import { mcpMode } from './mcp-mode';
 import { appState } from './src/state';
-import { loadConfig } from './src/config';
+import { loadConfig, isPlaceholderApiKey } from './src/config';
 
 import { runAgent, handleToolCalls } from './src/agent';
 import { startCLI } from './src/cli';
@@ -57,21 +58,24 @@ let router: ProviderRouter | null = null;
 // 启动像素标识
 // 注意：CJK 字符在终端占 2 列宽，源码只算 1 字符；排版时按 CJK 字符数 -1 计算空格
 // 所有行（外框/内框/内容）终端列宽统一为 56
-const BANNER = chalk.hex('#FF6900')(`
-╔══════════════════════════════════════════════════════╗
-║  ███╗   ███╗     ██████╗ ██████╗ ██████╗ ███████╗    ║
-║  ████╗ ████║    ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ║
-║  ██╔████╔██║    ██║     ██║   ██║██║  ██║█████╗      ║
-║  ██║╚██╔╝██║    ██║     ██║   ██║██║  ██║██╔══╝      ║
-║  ██║ ╚═╝ ██║    ╚██████╗╚██████╔╝██████╔╝███████╗    ║
-║  ╚═╝     ╚═╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ║
-╠══════════════════════════════════════════════════════╣
-║  ▓▒░  ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  ░▒▓  ║
-║  ▓▒░  ┃    mi-cc · 为发烧而生 · v2.2.1         ┃  ░▒▓  ║
-║  ▓▒░  ┃    智能编程助手 · LLM Agent Shell      ┃  ░▒▓  ║
-║  ▓▒░  ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  ░▒▓  ║
-╚══════════════════════════════════════════════════════╝
-`);
+// 配色：大 M 保持小米橙，其余边框/文字用柔和灰
+const orange = chalk.hex('#FF6900');
+const soft = chalk.gray;
+
+const BANNER = ''
+  + soft('╔══════════════════════════════════════════════════════╗\n')
+  + orange('║  ███╗   ███╗     ██████╗ ██████╗ ██████╗ ███████╗    ║\n')
+  + orange('║  ████╗ ████║    ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ║\n')
+  + orange('║  ██╔████╔██║    ██║     ██║   ██║██║  ██║█████╗      ║\n')
+  + orange('║  ██║╚██╔╝██║    ██║     ██║   ██║██║  ██║██╔══╝      ║\n')
+  + orange('║  ██║ ╚═╝ ██║    ╚██████╗╚██████╔╝██████╔╝███████╗    ║\n')
+  + orange('║  ╚═╝     ╚═╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ║\n')
+  + soft('╠══════════════════════════════════════════════════════╣\n')
+  + soft('║  ▓▒░  ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮  ░▒▓  ║\n')
+  + soft('║  ▓▒░  ┃    ') + chalk.white('mi-cc · 为发烧而生 · v2.3.0') + soft('         ┃  ░▒▓  ║\n')
+  + soft('║  ▓▒░  ┃    ') + chalk.white('智能编程助手 · LLM Agent Shell') + soft('      ┃  ░▒▓  ║\n')
+  + soft('║  ▓▒░  ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯  ░▒▓  ║\n')
+  + soft('╚══════════════════════════════════════════════════════╝\n');
 
 // ==================== 初始化 ====================
 
@@ -84,7 +88,7 @@ function initOpenAI(cfg: { apiKey: string; baseUrl: string }) {
 
 // ==================== 版本检查 ====================
 
-const CURRENT_VERSION = '2.2.1';
+const CURRENT_VERSION = '2.3.0';
 
 function fetchRemoteVersion(): Promise<string | null> {
   return new Promise((resolve) => {
@@ -135,7 +139,7 @@ async function main() {
   program
     .name('mi-cc')
     .description('mi-cc - 智能编程助手 (MCP Server / CLI)')
-    .version('2.2.1')
+    .version('2.3.0')
     .option('-s, --session <id>', '指定会话 ID')
     .option('--mcp', '以 MCP Server 模式启动（StdioServerTransport）')
     .parse(process.argv);
@@ -167,9 +171,9 @@ async function main() {
   }
 
   // 首次运行检测：API Key 缺失或为占位符时引导配置
-  if (!config.apiKey || config.apiKey === 'your_api_key_here') {
+  if (!config.apiKey || isPlaceholderApiKey(config.apiKey)) {
     console.log('┌──────────────────────────────────────────────────────────┐');
-    console.log('│  ⚠  尚未配置 API Key                                    │');
+    console.log('│  ⚠  API Key 未配置或为占位符                              │');
     console.log('│                                                          │');
     console.log('│  请输入 /connect 启动配置向导，或直接输入：              │');
     console.log('│    /connect <你的API Key>                                │');
@@ -181,6 +185,8 @@ async function main() {
   let openai = initOpenAI(config);
   let historyData = initHistory();
   let tools = createBuiltinTools();
+  // 加载用户自定义命令允许列表（持久化在 .mi-cc-allow.json）
+  loadUserAllowList();
   initMcpTools(tools, (cmd, timeout) =>
     toolRunShell({ command: cmd, timeout }),
   );

@@ -5,9 +5,11 @@
 
 import * as readline from 'readline';
 import { appState } from './state';
-import { handleSlashCommand, SLASH_COMMANDS } from '../commands';
+import { handleSlashCommand, SLASH_COMMANDS, setReplReadline } from '../commands';
 import type { SlashContext } from '../commands';
 import { renderError, renderCommandHint } from './ui';
+import { setCommandAuthorizer } from '../tools';
+import type { AuthorizeResult } from '../tools';
 
 export interface CLIOptions {
   onUserInput: (input: string) => Promise<void>;
@@ -56,6 +58,31 @@ export async function startCLI(options: CLIOptions): Promise<void> {
     completer,
   });
 
+  // 将 REPL 的 readline 注册到 commands 模块，供交互式向导复用
+  setReplReadline(rl);
+
+  // 设置命令授权器：非白名单命令执行前交互式询问用户
+  setCommandAuthorizer(async (command: string, reason: string): Promise<AuthorizeResult> => {
+    return new Promise((resolve) => {
+      // 暂停 REPL prompt，避免提示符干扰
+      rl.setPrompt('');
+      rl.prompt();
+      rl.setPrompt('\n> ');
+      console.log(`\n⚠ ${reason}`);
+      console.log(`  命令: ${command}`);
+      console.log(`  选项: [y] 本次允许  [a] 永久允许  [n] 拒绝 (默认)`);
+      const ask = () => {
+        rl.question('授权? (y/a/n): ', (answer) => {
+          const a = answer.trim().toLowerCase();
+          if (a === 'y' || a === 'yes') resolve('yes');
+          else if (a === 'a' || a === 'always') resolve('always');
+          else resolve('no');
+        });
+      };
+      ask();
+    });
+  });
+
   rl.prompt();
 
   rl.on('line', async (input) => {
@@ -74,12 +101,17 @@ export async function startCLI(options: CLIOptions): Promise<void> {
     }
 
     if (trimmed.startsWith('/')) {
-      // 暂停 REPL 的 readline，避免与交互式向导（如 /connect）的 readline 冲突
-      rl.pause();
-      try {
-        await handleSlashCommand(slashCtx, trimmed);
-      } finally {
-        rl.resume();
+      // 交互式向导会复用 rl，无需 pause/resume
+      await handleSlashCommand(slashCtx, trimmed);
+      // 检查是否有斜杠命令设置的待发送消息（如 /image <path> <text>）
+      const pendingMsg = appState.get('pendingMessage');
+      if (pendingMsg) {
+        appState.set('pendingMessage', null);
+        try {
+          await onUserInput(pendingMsg);
+        } catch (error) {
+          renderError(String(error));
+        }
       }
       rl.prompt();
       return;

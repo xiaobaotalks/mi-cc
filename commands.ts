@@ -15,6 +15,12 @@ import {
 } from './compress';
 import { loadSkills, reloadSkills } from './skills';
 import { loadMcpTools } from './mcp';
+import { ProviderRouter, type ProviderConfig } from './src/router';
+import {
+  addUserAllowedCommand,
+  removeUserAllowedCommand,
+  getUserAllowList,
+} from './tools';
 import {
   readCheckpoint,
   readMemory,
@@ -46,6 +52,63 @@ export interface SlashContext {
 // ==================== /connect ====================
 
 import * as readline from 'readline';
+
+/** REPL 的 readline 接口（由 cli.ts 设置，交互式向导复用，避免 stdin 冲突） */
+let replRl: readline.Interface | null = null;
+
+/** 设置 REPL 的 readline 接口，供交互式向导复用 */
+export function setReplReadline(rl: readline.Interface): void {
+  replRl = rl;
+}
+
+/** 重建 ProviderRouter 并同步到 appState（切换 Provider 后必须调用） */
+function rebuildRouter(ctx: SlashContext): void {
+  const allProviders: ProviderConfig[] = [
+    {
+      id: 'primary',
+      name: 'Primary',
+      apiKey: ctx.config.apiKey,
+      baseUrl: ctx.config.baseUrl,
+      model: ctx.config.model,
+    },
+  ];
+  const backupProviders = ProviderRouter.loadFromEnv();
+  allProviders.push(...backupProviders);
+
+  if (allProviders.length > 1) {
+    const newRouter = new ProviderRouter(allProviders);
+    appState.router = newRouter;
+    console.log(`[Provider] 已重建路由 (${allProviders.length} 个 Provider)`);
+  } else {
+    appState.router = null;
+  }
+}
+
+/** 合并写入 .env：只覆盖指定 key，保留其他 key 不变 */
+function mergeEnvFile(updates: Record<string, string>): void {
+  const envPath = '.env';
+  let existing: Record<string, string> = {};
+
+  // 读取已有 .env
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx > 0) {
+        existing[trimmed.substring(0, eqIdx).trim()] = trimmed.substring(eqIdx + 1).trim();
+      }
+    }
+  }
+
+  // 合并更新
+  Object.assign(existing, updates);
+
+  // 写回
+  const lines = Object.entries(existing).map(([k, v]) => `${k}=${v}`);
+  fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf-8');
+}
 
 /** 预置的模型配置模板 */
 const PRESET_PROVIDERS = [
@@ -100,6 +163,7 @@ const PRESET_PROVIDERS = [
  */
 async function safeStoreApiKey(service: string, account: string, key: string): Promise<boolean> {
   try {
+    // @ts-ignore - keytar 为可选依赖，运行时动态加载
     const keytar = await import('keytar');
     await keytar.setPassword(service, account, key);
     return true;
@@ -111,6 +175,7 @@ async function safeStoreApiKey(service: string, account: string, key: string): P
 
 async function safeGetApiKey(service: string, account: string): Promise<string | null> {
   try {
+    // @ts-ignore - keytar 为可选依赖，运行时动态加载
     const keytar = await import('keytar');
     return await keytar.getPassword(service, account);
   } catch {
@@ -127,10 +192,12 @@ function createPrompt(rl: readline.Interface, question: string): Promise<string>
 
 /** 交互式配置向导 */
 async function interactiveConnect(ctx: SlashContext): Promise<void> {
-  const rl = readline.createInterface({
+  // 复用 REPL 的 readline，避免两个 readline 同时监听 stdin 导致输入冲突
+  const rl = replRl || readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
+  const shouldClose = !replRl;  // 只有自建的 readline 才需要关闭
 
   try {
     console.log('\n╔═══════════════════════════════════════════════════════════════╗');
@@ -155,8 +222,9 @@ async function interactiveConnect(ctx: SlashContext): Promise<void> {
     const idx = parseInt(providerIdx, 10) - 1;
     const provider = PRESET_PROVIDERS[idx] || PRESET_PROVIDERS[0];
 
-    // 输入 API Key（隐藏输入）
-    const apiKey = await createPrompt(rl, '请输入 API Key: ');
+    // 输入 API Key（按 Enter 保留当前值）
+    const apiKeyInput = await createPrompt(rl, `请输入 API Key (按 Enter 保留当前值): `);
+    const apiKey = apiKeyInput || ctx.config.apiKey;
     if (!apiKey) {
       renderError('API Key 不能为空，配置取消');
       return;
@@ -236,14 +304,17 @@ async function interactiveConnect(ctx: SlashContext): Promise<void> {
     appState.set('openai', ctx.openai);
 
     // 保存到 .env（如果启用安全存储则写入占位符）
-    const envContent = `API_KEY=${apiKeyToStore}
-BASE_URL=${ctx.config.baseUrl}
-MODEL=${ctx.config.model}
-`;
-    fs.writeFileSync('.env', envContent, 'utf-8');
+    mergeEnvFile({
+      API_KEY: apiKeyToStore,
+      BASE_URL: ctx.config.baseUrl,
+      MODEL: ctx.config.model,
+    });
 
     renderSuccess('配置已更新并保存到 .env');
     renderInfo('当前使用:', `${provider.name} / ${model}`);
+
+    // 重建故障转移路由器
+    rebuildRouter(ctx);
 
     // 测试连接
     renderInfo('正在测试连接...', '');
@@ -251,7 +322,7 @@ MODEL=${ctx.config.model}
       const testResponse = await ctx.openai.chat.completions.create({
         model: ctx.config.model,
         messages: [{ role: 'user', content: 'hi' }],
-        max_tokens: 5,
+        max_tokens: 16,
       });
       renderSuccess('连接测试成功!');
     } catch (error) {
@@ -260,14 +331,39 @@ MODEL=${ctx.config.model}
     }
 
   } finally {
-    rl.close();
+    if (shouldClose) rl.close();
   }
 }
 
 async function handleConnect(ctx: SlashContext, args: string[]): Promise<void> {
-  // 如果有参数，走旧模式（兼容脚本调用）
+  // 子命令：list 显示当前配置
+  if (args.length === 1 && args[0] === 'list') {
+    console.log('[配置] 当前配置:');
+    console.log(`  API Key: ${ctx.config.apiKey ? ctx.config.apiKey.substring(0, 8) + '...' : '未设置'}`);
+    console.log(`  Base URL: ${ctx.config.baseUrl}`);
+    console.log(`  Model: ${ctx.config.model}`);
+    console.log(`  Max Tokens: ${ctx.config.maxTokens}`);
+    return;
+  }
+
+  // 如果有参数，走快捷模式
   if (args.length > 0) {
-    ctx.config.apiKey = args[0];
+    // 检测第一个参数是否像 API Key（以字母数字开头，且长度 > 5）
+    const firstArg = args[0];
+    const looksLikeApiKey = /^[a-zA-Z0-9_\-]/.test(firstArg) && firstArg.length > 5;
+
+    if (!looksLikeApiKey) {
+      // 可能是供应商名称（如"小米"）或误输入，走交互式向导
+      renderWarning(`"${firstArg}" 不是有效的 API Key，已启动交互式向导`);
+      try {
+        await interactiveConnect(ctx);
+      } catch (err) {
+        console.log(`[配置向导] 错误: ${err}`);
+      }
+      return;
+    }
+
+    ctx.config.apiKey = firstArg;
     if (args[1]) ctx.config.baseUrl = args[1];
     if (args[2]) ctx.config.model = args[2];
 
@@ -280,11 +376,11 @@ async function handleConnect(ctx: SlashContext, args: string[]): Promise<void> {
     appState.set('config', ctx.config);
     appState.set('openai', ctx.openai);
 
-    const envContent = `API_KEY=${ctx.config.apiKey}
-BASE_URL=${ctx.config.baseUrl}
-MODEL=${ctx.config.model}
-`;
-    fs.writeFileSync('.env', envContent, 'utf-8');
+    mergeEnvFile({
+      API_KEY: ctx.config.apiKey,
+      BASE_URL: ctx.config.baseUrl,
+      MODEL: ctx.config.model,
+    });
     console.log('配置已更新并保存');
     return;
   }
@@ -510,17 +606,21 @@ function handleProviderCommand(ctx: SlashContext, args: string[]): void {
 
     case 'save': {
       const name = args[1] || ctx.config.model;
+      // 新保存的 Provider 默认设为 active，之前的全部取消 active
+      for (const p of providers) {
+        p.active = false;
+      }
       const entry: ProviderEntry = {
         id: `p_${Date.now()}`,
         name,
         apiKey: ctx.config.apiKey,
         baseUrl: ctx.config.baseUrl,
         model: ctx.config.model,
-        active: false,
+        active: true,
       };
       providers.push(entry);
       saveProviders(providers);
-      console.log(`[Provider] 已保存: ${name} (${ctx.config.model})`);
+      console.log(`[Provider] 已保存并激活: ${name} (${ctx.config.model})`);
       return;
     }
 
@@ -554,11 +654,14 @@ function handleProviderCommand(ctx: SlashContext, args: string[]): void {
       appState.set('openai', ctx.openai);
 
       // 同步到 .env
-      const envContent = `API_KEY=${target.apiKey}
-BASE_URL=${target.baseUrl}
-MODEL=${target.model}
-`;
-      fs.writeFileSync('.env', envContent, 'utf-8');
+      mergeEnvFile({
+        API_KEY: target.apiKey,
+        BASE_URL: target.baseUrl,
+        MODEL: target.model,
+      });
+
+      // 重建故障转移路由器
+      rebuildRouter(ctx);
 
       console.log(`[Provider] 已切换到: ${target.name} (${target.model})`);
       return;
@@ -724,9 +827,44 @@ function handleToolsCommand(ctx: SlashContext): void {
 
 // ==================== 路由 ====================
 
+/** 解析命令输入，支持双引号包裹的参数（路径含空格等场景） */
+function parseCommandInput(input: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+
+    if (ch === '"') {
+      // 遇到引号：切换引号状态，不将引号本身加入 current
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (ch === ' ' && !inQuotes) {
+      // 引号外的空格：分隔参数
+      if (current.length > 0) {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  // 最后一个参数
+  if (current.length > 0) {
+    parts.push(current);
+  }
+
+  return parts;
+}
+
 /** 处理所有斜杠命令，返回 true 表示已处理 */
 export async function handleSlashCommand(ctx: SlashContext, input: string): Promise<boolean> {
-  const parts = input.trim().split(/\s+/);
+  const parts = parseCommandInput(input.trim());
   const command = parts[0];
   const args = parts.slice(1);
 
@@ -755,6 +893,59 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
       handleProviderCommand(ctx, args);
       return true;
 
+    case '/model': {
+      // /model              - 查看当前模型
+      // /model <模型名>      - 快速切换模型
+      // /model list          - 列出当前供应商的所有模型
+      if (args.length === 0) {
+        console.log(`[模型] 当前: ${ctx.config.model}`);
+        console.log('  用法: /model <模型名> 切换，/model list 列出可用模型');
+        return true;
+      }
+      if (args[0] === 'list') {
+        // 根据当前 baseUrl 找到匹配的供应商
+        const matched = PRESET_PROVIDERS.find(p => p.baseUrl === ctx.config.baseUrl);
+        if (matched && matched.models.length > 0) {
+          console.log(`[模型] ${matched.name} 可用模型:`);
+          matched.models.forEach((m, i) => {
+            const marker = m === ctx.config.model ? ' ← 当前' : '';
+            console.log(`  ${i + 1}. ${m}${marker}`);
+          });
+          console.log('  切换: /model <模型名>');
+        } else {
+          console.log('[模型] 当前供应商无预置模型列表，请直接输入模型名');
+          console.log('  切换: /model <模型名>');
+        }
+        return true;
+      }
+      // 切换模型
+      const newModel = args[0];
+      const oldModel = ctx.config.model;
+      ctx.config.model = newModel;
+      ctx.openai = new OpenAI({
+        apiKey: ctx.config.apiKey,
+        baseURL: ctx.config.baseUrl,
+      });
+      appState.set('config', ctx.config);
+      appState.set('openai', ctx.openai);
+      // 保存到 .env
+      mergeEnvFile({
+        API_KEY: ctx.config.apiKey,
+        BASE_URL: ctx.config.baseUrl,
+        MODEL: ctx.config.model,
+      });
+      // 更新上下文窗口
+      const { resolveContextWindow } = await import('./compress');
+      const resolvedWindow = resolveContextWindow(newModel);
+      if (resolvedWindow) {
+        ctx.config.maxTokens = resolvedWindow;
+        console.log(`[模型] ${oldModel} → ${newModel} (上下文: ${(resolvedWindow / 1024).toFixed(0)}K)`);
+      } else {
+        console.log(`[模型] ${oldModel} → ${newModel}`);
+      }
+      return true;
+    }
+
     case '/window':
       handleWindowCommand(args);
       return true;
@@ -770,6 +961,109 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
     case '/tools':
       handleToolsCommand(ctx);
       return true;
+
+    case '/allow': {
+      // /allow              - 查看当前用户允许列表
+      // /allow <cmd>        - 添加命令到允许列表
+      // /allow remove <cmd> - 从允许列表移除
+      if (args.length === 0) {
+        const list = getUserAllowList();
+        if (list.length === 0) {
+          console.log('[授权] 用户自定义允许列表为空');
+          console.log('  用法: /allow <命令名> 添加，/allow remove <命令名> 移除');
+        } else {
+          console.log(`[授权] 用户自定义允许列表 (${list.length} 项):`);
+          for (const c of list) {
+            console.log(`  - ${c}`);
+          }
+        }
+      } else if (args[0] === 'remove' && args[1]) {
+        if (removeUserAllowedCommand(args[1])) {
+          console.log(`[授权] 已移除: ${args[1]}`);
+        } else {
+          console.log(`[授权] 不在列表中: ${args[1]}`);
+        }
+      } else {
+        addUserAllowedCommand(args[0]);
+        console.log(`[授权] 已添加: ${args[0]}`);
+      }
+      return true;
+    }
+
+    case '/image': {
+      // /image <路径>              - 添加图片到下一次对话
+      // /image <路径> <文本提示>    - 添加图片并立即发送带图片的消息
+      // /image list                - 查看待发送图片
+      // /image clear               - 清空待发送图片
+      if (args.length === 0) {
+        console.log('[图片] 用法:');
+        console.log('  /image <图片路径>              添加图片，稍后输入文本时发送');
+        console.log('  /image <图片路径> <文本提示>    添加图片并立即发送');
+        console.log('  /image list                    查看待发送图片');
+        console.log('  /image clear                   清空待发送图片');
+        console.log('  支持格式: png, jpg/jpeg, gif, webp, bmp');
+        return true;
+      }
+      if (args[0] === 'list') {
+        const pending = appState.get('pendingImages');
+        if (pending.length === 0) {
+          console.log('[图片] 当前无待发送图片');
+        } else {
+          console.log(`[图片] 待发送 ${pending.length} 张:`);
+          for (const img of pending) {
+            console.log(`  - ${img.path} (${img.mimeType})`);
+          }
+        }
+        return true;
+      }
+      if (args[0] === 'clear') {
+        appState.set('pendingImages', []);
+        console.log('[图片] 已清空待发送图片');
+        return true;
+      }
+      // 添加图片
+      const imgPath = args[0];
+      // 剩余参数作为文本提示（可选）
+      const textPrompt = args.slice(1).join(' ').trim();
+      try {
+        if (!fs.existsSync(imgPath)) {
+          console.log(`[图片] 错误: 文件不存在 ${imgPath}`);
+          return true;
+        }
+        const ext = path.extname(imgPath).toLowerCase();
+        const mimeMap: Record<string, string> = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.bmp': 'image/bmp',
+        };
+        const mimeType = mimeMap[ext];
+        if (!mimeType) {
+          console.log(`[图片] 错误: 不支持的图片格式 ${ext}，支持 png/jpg/gif/webp/bmp`);
+          return true;
+        }
+        const buffer = fs.readFileSync(imgPath);
+        const base64 = buffer.toString('base64');
+        const pending = appState.get('pendingImages');
+        pending.push({ path: imgPath, base64, mimeType });
+        appState.set('pendingImages', pending);
+        const sizeKb = (buffer.length / 1024).toFixed(1);
+        console.log(`[图片] 已添加: ${imgPath} (${mimeType}, ${sizeKb}KB)`);
+
+        if (textPrompt) {
+          // 有文本提示：设置待发送消息，CLI 处理完斜杠命令后自动发送
+          appState.set('pendingMessage', textPrompt);
+          console.log(`[图片] 即将发送: ${textPrompt}`);
+        } else {
+          console.log(`[图片] 当前共 ${pending.length} 张待发送，输入文本后将自动附加`);
+        }
+      } catch (err) {
+        console.log(`[图片] 读取失败: ${err}`);
+      }
+      return true;
+    }
 
     case '/index': {
       await scanProject();
@@ -820,6 +1114,7 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
       console.log(`
 可用命令:
   /connect [api_key] [base_url] [model]  - 设置 API 配置（无参数启动交互向导）
+  /model [模型名|list]                   - 查看/快速切换模型
   /provider [list|save|switch|remove]    - 管理多模型 Provider 配置
   /session [list|switch|new|rename|remove] - 管理多会话
   /compact                               - 手动压缩上下文
@@ -829,6 +1124,8 @@ export async function handleSlashCommand(ctx: SlashContext, input: string): Prom
   /window [status|set <n>]               - 查看/设置滚动窗口
   /task [status|steps|reset]             - 查看/管理任务级 checkpoint
   /tools                                 - 查看所有可用工具
+  /allow [命令名|remove <命令名>]         - 管理非白名单命令授权（执行时也可交互式授权）
+  /image [图片路径|list|clear]            - 添加图片到下一次对话（多模态）
   /index                                 - 扫描项目并生成代码索引
   /ask <问题>                            - 基于索引回答代码库问题
   /exit                                  - 退出程序
@@ -867,6 +1164,7 @@ export function initMcpTools(
 /** 斜杠命令清单（用于 Tab 补全 + 提示） */
 export const SLASH_COMMANDS: Array<{ name: string; description: string; subArgs?: string[] }> = [
   { name: '/connect', description: '设置 API 配置（无参数启动交互向导）', subArgs: ['[api_key]', '[base_url]', '[model]'] },
+  { name: '/model', description: '查看/快速切换模型', subArgs: ['<模型名>', 'list'] },
   { name: '/provider', description: '管理多模型 Provider 配置', subArgs: ['list', 'save', 'switch', 'remove'] },
   { name: '/compact', description: '手动压缩上下文' },
   { name: '/distill', description: '经验蒸馏，生成技能库' },
@@ -876,6 +1174,8 @@ export const SLASH_COMMANDS: Array<{ name: string; description: string; subArgs?
   { name: '/task', description: '查看/管理任务级 checkpoint', subArgs: ['status', 'steps', 'reset'] },
   { name: '/session', description: '管理多会话', subArgs: ['list', 'switch', 'new', 'rename', 'remove'] },
   { name: '/tools', description: '查看所有可用工具' },
+  { name: '/allow', description: '管理非白名单命令授权', subArgs: ['<命令名>', 'remove <命令名>'] },
+  { name: '/image', description: '添加图片到下一次对话（多模态）', subArgs: ['<图片路径>', 'list', 'clear'] },
   { name: '/index', description: '扫描项目并生成代码索引' },
   { name: '/ask', description: '基于索引回答代码库问题', subArgs: ['<问题>'] },
   { name: '/exit', description: '退出程序' },

@@ -562,7 +562,7 @@ footer a:hover { color: var(--accent); }
 
 <header class="hero">
   <div class="container">
-    <div class="badge"><span class="dot"></span>v2.2.1 · 为发烧而生 · 国产模型优先</div>
+    <div class="badge"><span class="dot"></span>v2.3.0 · 为发烧而生 · 联网 + 多模态</div>
     <h1>mi-cc</h1>
     <p class="tagline">包催催个人定制 · 自带四层记忆、多模型故障转移、自动压缩的 AI 编程助手。<br />本地终端体验 + MCP Server 模式，让 OpenClaw/Cursor/Claude 获得专属编程能力。</p>
 
@@ -571,8 +571,10 @@ footer a:hover { color: var(--accent); }
       <span class="feature-pill">🔄 多模型切换</span>
       <span class="feature-pill">📦 自动压缩</span>
       <span class="feature-pill">🎯 自主规划</span>
+      <span class="feature-pill">🌐 联网搜索</span>
+      <span class="feature-pill">🖼️ 图片理解</span>
       <span class="feature-pill">📚 技能蒸馏</span>
-      <span class="feature-pill">🌐 MCP Server</span>
+      <span class="feature-pill">🔗 MCP Server</span>
     </div>
 
     <div class="cta">
@@ -817,6 +819,8 @@ footer a:hover { color: var(--accent); }
             <div style="color: var(--text-soft);">Shell（白名单）</div>
             <div><code style="color: var(--accent);">git</code></div>
             <div style="color: var(--text-soft);">Git 操作</div>
+            <div><code style="color: var(--accent);">webFetch</code></div>
+            <div style="color: var(--text-soft);">网页抓取</div>
             <div><code style="color: var(--accent);">skill_match</code></div>
             <div style="color: var(--text-soft);">技能匹配</div>
             <div><code style="color: var(--accent);">memory://*</code></div>
@@ -927,14 +931,14 @@ mi-cc update          # 一键更新到最新版本</code><button class="copy-bt
         <span class="terminal-dot red"></span>
         <span class="terminal-dot yellow"></span>
         <span class="terminal-dot green"></span>
-        <span class="terminal-title">mi-cc v2.2.1 — mimo-v2.5-pro</span>
+        <span class="terminal-title">mi-cc v2.3.0 — mimo-v2.5-pro</span>
       </div>
       <div class="terminal-body">
         <div class="terminal-line terminal-border-top">
           <span class="terminal-warning">[检测]</span> 未发现 API Key — 输入 /connect 进行配置（或 /connect &lt;你的API Key&gt;）
         </div>
         <div class="terminal-line">
-          <span class="terminal-info">[版本]</span> 当前 v2.2.1 · 启动时自动检查更新 · 输入 mi-cc update 升级
+          <span class="terminal-info">[版本]</span> 当前 v2.3.0 · 启动时自动检查更新 · 输入 mi-cc update 升级
         </div>
         <div class="terminal-line">
           <span class="terminal-info">[配置]</span> 模型 mimo-v2.5-pro · 自动设置 maxTokens=1000000
@@ -946,25 +950,49 @@ mi-cc update          # 一键更新到最新版本</code><button class="copy-bt
           <span class="terminal-prompt">&gt;</span> <span class="terminal-input">帮我创建一个 Todo 应用的项目结构</span>
         </div>
         <div class="terminal-line">
-          <span class="terminal-info">[助手]</span> 好的，我来规划并执行这个任务。
+          <span class="terminal-info">🤔</span> 思考中...
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">🔧</span> 调用工具: writeFile package.json
         </div>
         <div class="terminal-line">
           <span class="terminal-success">✓</span> writeFile({ "path": "package.json", ... }) · 耗时 38ms
         </div>
         <div class="terminal-line">
+          <span class="terminal-info">🔧</span> 调用工具: writeFile src/App.tsx
+        </div>
+        <div class="terminal-line">
           <span class="terminal-success">✓</span> writeFile({ "path": "src/App.tsx", ... }) · 耗时 24ms
         </div>
         <div class="terminal-line">
-          <span class="terminal-success">✓</span> runShell("npm install") · 耗时 12450ms
+          <span class="terminal-info">🔧</span> 调用工具: runShell npm install
         </div>
         <div class="terminal-line">
-          <span class="terminal-success">✓</span> runShell("npm run build") · 耗时 3820ms
+          <span class="terminal-success">✓</span> runShell("npm install") · 耗时 12450ms
         </div>
         <div class="terminal-line">
           <span class="terminal-output">[ctx: 15% | 未压缩]</span>
         </div>
         <div class="terminal-line terminal-border-top">
           <span class="terminal-info">[任务]</span> ✅ Todo 应用创建完成！
+        </div>
+        <div class="terminal-line terminal-border-top">
+          <span class="terminal-prompt">&gt;</span> <span class="terminal-input">/image screenshot.png 描述这个界面</span>
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">[图片]</span> 已添加 1 张图片，发送中...
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">🤔</span> 思考中...
+        </div>
+        <div class="terminal-line terminal-border-top">
+          <span class="terminal-prompt">&gt;</span> <span class="terminal-input">帮我查一下 Node.js 最新版本</span>
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-info">🔧</span> 调用工具: webFetch https://nodejs.org/
+        </div>
+        <div class="terminal-line">
+          <span class="terminal-success">✓</span> webFetch · 耗时 2100ms
         </div>
       </div>
     </div>

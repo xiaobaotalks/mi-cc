@@ -5,6 +5,20 @@ import * as path from 'path';
 
 // ========== Schema 定义 ==========
 
+/** 已知的 API Key 占位符（不应被当作有效 Key） */
+export const API_KEY_PLACEHOLDERS = new Set([
+  'your_api_key_here', 'xxx', 'test', 'demo', 'placeholder',
+  'lp', 'key', 'api_key', 'sk-xxx', 'sk-test',
+]);
+
+/** 检查 API Key 是否为占位符或过短 */
+export function isPlaceholderApiKey(key: string): boolean {
+  if (!key) return true;
+  if (key.length < 16) return true;
+  if (API_KEY_PLACEHOLDERS.has(key.toLowerCase())) return true;
+  return false;
+}
+
 const ProviderSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url().or(z.literal('')),
@@ -116,7 +130,7 @@ export function loadConfig(options?: Partial<{
   }
 
   // 7. 检查未知配置项
-  const knownKeys = ['API_KEY', 'BASE_URL', 'MODEL', 'MAX_TOKEN', 
+  const knownKeys = ['API_KEY', 'BASE_URL', 'MODEL', 'MAX_TOKEN',
     ...Array.from({ length: 5 }, (_, i) => `API_KEY_${i+1}`),
     ...Array.from({ length: 5 }, (_, i) => `BASE_URL_${i+1}`),
     ...Array.from({ length: 5 }, (_, i) => `MODEL_${i+1}`),

@@ -60,9 +60,10 @@ export class ProviderRouter {
   async chat(params: ChatParams & { signal?: AbortSignal }): Promise<ChatResponse> {
     const attempts = this.providers.length;
     let lastError: Error | null = null;
+    const startIndex = this.currentIndex;  // 保存起始索引，避免循环中被改后回弹
 
     for (let i = 0; i < attempts; i++) {
-      const idx = (this.currentIndex + i) % this.providers.length;
+      const idx = (startIndex + i) % this.providers.length;
       const provider = this.providers[idx];
 
       // 跳过冷却中的 Provider

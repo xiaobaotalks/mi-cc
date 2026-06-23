@@ -29,6 +29,10 @@ class AppState {
   maxRawTurns: number = DEFAULT_MAX_RAW_TURNS;
   /** 多 Provider 故障转移路由器（可选，未配置时为 null） */
   router: ProviderRouter | null = null;
+  /** 待发送的图片（由 /image 命令添加，下一次用户输入时附加到消息中） */
+  pendingImages: Array<{ path: string; base64: string; mimeType: string }> = [];
+  /** 待发送的文本消息（由 /image <path> <text> 命令设置，斜杠命令处理后自动发送） */
+  pendingMessage: string | null = null;
 
   // 变更订阅
   private _listeners: Map<string, Set<(value: unknown) => void>> = new Map();
@@ -129,6 +133,9 @@ class AppState {
         for (const r of records) {
           if (r.role === 'user' || r.role === 'assistant') {
             rawMessages.push({ role: r.role, content: r.content });
+          } else if (r.role === 'tool' && r.tool_call_id) {
+            // 保留 tool 消息，否则后续 LLM 调用会缺少 tool_call_id 对应的响应
+            rawMessages.push({ role: 'tool', content: r.content, tool_call_id: r.tool_call_id });
           }
         }
       }

@@ -16,6 +16,7 @@ import OpenAI from 'openai';
 import type { Message } from './types';
 import { appState } from './src/state';
 import { getCompressStateFile } from './memory';
+import { callLLM } from './src/llm-core';
 
 export const COMPRESS_TIERS = {
   SOFT: 0.6,
@@ -130,6 +131,17 @@ export function saveStateFromMessages(messages: Message[], sessionId?: string): 
   saveCompressState({ summaries: layers }, sessionId);
 }
 
+/** 将 MessageContent 安全转为字符串（多模态数组只取文本部分） */
+export function contentToString(content: Message['content']): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(p => (p.type === 'text' ? p.text : '[图片]'))
+      .join('');
+  }
+  return '';
+}
+
 /** 更准确的 token 估算 */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
@@ -139,7 +151,9 @@ export function estimateTokens(text: string): number {
 }
 
 export function estimateMessageTokens(msg: Message): number {
-  let tokens = estimateTokens(msg.content || '') + 4; // 4 token 开销（role + 结构）
+  // content 可能是字符串或多模态数组，统一转为字符串估算
+  const contentStr = contentToString(msg.content);
+  let tokens = estimateTokens(contentStr || '') + 4; // 4 token 开销（role + 结构）
   if (msg.tool_calls) {
     for (const tc of msg.tool_calls) {
       tokens += estimateTokens(tc.function.name) + estimateTokens(tc.function.arguments) + 8;
@@ -162,6 +176,7 @@ export function isSummaryMessage(msg: Message): boolean {
 
 /** 从 system 消息中解析摘要层 */
 export function parseSummaryLayer(msg: Message): SummaryLayer | null {
+  if (typeof msg.content !== 'string') return null;
   const m = msg.content.match(/^\[历史摘要 L(\d+) @ ([^\]]+)\]\n([\s\S]*)$/);
   if (!m) return null;
   return {
@@ -205,13 +220,8 @@ ${blocks.map(b => {
 请输出结构化摘要（Markdown）：`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1200,
-      temperature: 0.2,
-    });
-    return response.choices[0]?.message?.content?.trim() || '摘要生成失败';
+    const response = await callLLM([{ role: 'user', content: prompt }]);
+    return response.content?.trim() || '摘要生成失败';
   } catch (error) {
     return `摘要生成错误: ${(error as Error).message}`;
   }
@@ -267,16 +277,12 @@ export async function compactRollingWindow(openai: OpenAI, model: string): Promi
     role: 'system',
     content: `请将以下对话历史压缩为简洁的摘要，保留关键信息和决策：
 
-${messagesToCompress.map(m => `${m.role}: ${m.content}`).join('\n')}`,
+${messagesToCompress.map(m => `${m.role}: ${contentToString(m.content)}`).join('\n')}`,
   };
 
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [compressPrompt] as unknown as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-    max_tokens: 500,
-  });
+  const response = await callLLM([compressPrompt]);
 
-  const summaryText = response.choices[0].message.content || '';
+  const summaryText = response.content || '';
 
   // 计算新摘要的 level
   const existingSummaries = appState.getSummaryMessages();
@@ -340,7 +346,7 @@ export async function tieredCompact(
 
     const blocks = [...summarizeHead(headSummaries), ...toCompressRaw.map(m => ({
       kind: 'raw' as const,
-      content: `[${m.role}]: ${m.content}`,
+      content: `[${m.role}]: ${contentToString(m.content)}`,
     }))];
 
     note(`[压缩] 紧急档触发: ${(ratio * 100).toFixed(1)}%，合并 ${headSummaries.length} 层摘要 + ${toCompressRaw.length} 条原文`);
@@ -371,7 +377,7 @@ export async function tieredCompact(
   note(`[压缩] 标准档触发: ${(ratio * 100).toFixed(1)}%，摘要 ${toCompressRaw.length} 条原文`);
   const blocks = toCompressRaw.map(m => ({
     kind: 'raw' as const,
-    content: `[${m.role}]: ${m.content}`,
+    content: `[${m.role}]: ${contentToString(m.content)}`,
   }));
   const text = await generateSummary(openai, model, blocks);
   const newLevel = headSummaries.length > 0

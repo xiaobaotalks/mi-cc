@@ -28,7 +28,7 @@ import OpenAI from 'openai';
 
 // ==================== 常量 ====================
 
-export const LLM_TIMEOUT_MS = 30_000;
+export const LLM_TIMEOUT_MS = 120_000;  // 2 分钟，代码生成等复杂任务需要较长时间
 export const LLM_MAX_RETRIES = 3;
 
 /**
@@ -125,7 +125,7 @@ async function handleContextLengthAndRetry(messages: Message[]): Promise<Message
 export async function retryWithBackoff(messages: Message[]): Promise<Message> {
   for (let attempt = 0; attempt < LLM_MAX_RETRIES; attempt++) {
     const delay = 500 * Math.pow(2, attempt);
-    console.log(`[LLM] 服务端错误，第 ${attempt + 1}/${LLM_MAX_RETRIES} 次重试，等待 ${delay}ms...`);
+    console.log(`[LLM] 调用失败，第 ${attempt + 1}/${LLM_MAX_RETRIES} 次重试，等待 ${delay}ms...`);
     await new Promise(resolve => setTimeout(resolve, delay));
 
     try {

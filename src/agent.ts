@@ -25,12 +25,14 @@ import type { Message } from '../types';
 
 import { callLLM, buildSystemPrompt, compactContext } from './llm-core';
 import type { CompactResult } from './llm-core';
+import { contentToString } from '../compress';
 import {
   renderToolResult,
   renderAssistant,
   renderWarning,
   renderContextBar,
 } from './ui';
+import chalk from 'chalk';
 
 // ==================== 常量 ====================
 
@@ -101,7 +103,7 @@ export async function handleToolCalls(message: OpenAI.Chat.Completions.ChatCompl
 
     writeCheckpoint({
       sessionId: appState.get('currentSessionId'),
-      task: appState.get('conversationHistory').find(m => m.role === 'user')?.content?.substring(0, 100) || '',
+      task: contentToString(appState.get('conversationHistory').find(m => m.role === 'user')?.content || '').substring(0, 100) || '',
       currentFile: lastFile,
       lastAction: toolName,
       result: result.substring(0, 200),
@@ -130,6 +132,28 @@ export async function runAgent(userInput: string): Promise<void> {
   appState.get('conversationHistory').push({ role: 'user', content: userInput });
   appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'user', userInput));
 
+  // 如果有待发送的图片，将用户消息改为多模态格式
+  const pendingImages = appState.get('pendingImages');
+  if (pendingImages.length > 0) {
+    const contentParts: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
+      { type: 'text', text: userInput },
+    ];
+    for (const img of pendingImages) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+      });
+    }
+    // 替换最后一条用户消息为多模态格式
+    const lastMsg = appState.get('conversationHistory')[appState.get('conversationHistory').length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      lastMsg.content = contentParts;
+    }
+    console.log(chalk.gray(`📎 已附加 ${pendingImages.length} 张图片到本次对话`));
+    // 清空待发送图片
+    appState.set('pendingImages', []);
+  }
+
   const compactResult = await compactContext();
 
   const messages: Message[] = [
@@ -137,15 +161,17 @@ export async function runAgent(userInput: string): Promise<void> {
     ...appState.get('conversationHistory'),
   ];
 
+  process.stdout.write(chalk.gray('🤔 思考中...\n'));
   let response = await callLLM(messages);
 
   let iterations = 0;
   while (true) {
     appState.get('conversationHistory').push(response);
-    appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'assistant', response.content || JSON.stringify(response)));
+    const responseContentStr = contentToString(response.content);
+    appState.set('historyData', saveHistory(appState.get('historyData'), appState.get('currentSessionId'), 'assistant', responseContentStr || JSON.stringify(response)));
 
-    if (response.content) {
-      renderAssistant(response.content, compactResult);
+    if (responseContentStr) {
+      renderAssistant(responseContentStr, compactResult);
     }
 
     const toolCalls = (response as OpenAI.Chat.Completions.ChatCompletionMessage).tool_calls;
@@ -165,6 +191,17 @@ export async function runAgent(userInput: string): Promise<void> {
       updateTaskStep(taskCheckpoint, toolStep.id, { status: 'in_progress' });
     }
     writeTaskCheckpoint(taskCheckpoint, appState.get('currentSessionId'));
+
+    // 显示正在调用的工具
+    for (const tc of toolCalls) {
+      let argsPreview = '';
+      try {
+        const a = JSON.parse(tc.function.arguments);
+        argsPreview = a.path || a.command || a.query || a.pattern || '';
+        if (argsPreview) argsPreview = ` ${chalk.gray(argsPreview)}`;
+      } catch {}
+      process.stdout.write(chalk.cyan(`🔧 调用工具: ${tc.function.name}${argsPreview}\n`));
+    }
 
     const results = await handleToolCalls(response as OpenAI.Chat.Completions.ChatCompletionMessage);
 
@@ -196,6 +233,7 @@ export async function runAgent(userInput: string): Promise<void> {
       { role: 'system', content: buildSystemPrompt() },
       ...appState.get('conversationHistory'),
     ];
+    process.stdout.write(chalk.gray('🤔 继续思考...\n'));
     response = await callLLM(nextMessages);
   }
 
@@ -209,7 +247,7 @@ export async function runAgent(userInput: string): Promise<void> {
     task: userInput.substring(0, 100),
     currentFile: '',
     lastAction: '对话',
-    result: response.content?.substring(0, 200) || '',
+    result: contentToString(response.content).substring(0, 200) || '',
     stage: '完成',
     time: new Date().toISOString(),
   }, appState.get('currentSessionId'));
